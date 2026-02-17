@@ -131,8 +131,11 @@ async fn main() {
             }
         }
 
-        for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
-            /*let bbox_origin = center + vec2(bbox_min_x as f32, -bbox_max_y as f32) * zoom;
+        for geom_with_data in polygon_unionfind.rtree().rtree.iter() {
+            let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
+            let [bbox_max_x, bbox_max_y] = geom_with_data.geom().upper();
+
+            let bbox_origin = center + vec2(bbox_min_x as f32, -bbox_max_y as f32) * zoom;
             let bbox_width = (bbox_max_x as f32 - bbox_min_x as f32) * zoom;
             let bbox_height = (bbox_max_y as f32 - bbox_min_y as f32) * zoom;
             draw_rectangle_lines(
@@ -142,8 +145,10 @@ async fn main() {
                 bbox_height,
                 2.0,
                 DARKGRAY,
-            );*/
+            );
+        }
 
+        for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
             for window in polygon
                 .iter()
                 .zip(polygon.iter().cycle().skip(1))
