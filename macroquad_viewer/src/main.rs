@@ -81,10 +81,8 @@ fn generate_random_radial_polygons(
 #[macroquad::main("Polygon Union-Find Viewer")]
 async fn main() {
     let mut polygon_unionfind: PolygonUnionFind<i64> = PolygonUnionFind::new();
-
-    for polygon in generate_random_radial_polygons(6, 3, 8, -200, 200) {
-        polygon_unionfind.insert(polygon);
-    }
+    let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
+    let mut curr_original_polygon = 0;
 
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
@@ -95,6 +93,14 @@ async fn main() {
         if scroll_y != 0.0 {
             zoom *= 1.0 + scroll_y * 0.1;
             zoom = zoom.clamp(0.1, 20.0);
+        }
+
+        if is_mouse_button_down(MouseButton::Left) {
+            if curr_original_polygon < original_polygons.len() {
+                polygon_unionfind.insert(original_polygons[curr_original_polygon].clone());
+                curr_original_polygon += 1;
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
         }
 
         if is_mouse_button_down(MouseButton::Middle) {
@@ -112,16 +118,50 @@ async fn main() {
 
         let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
 
-        for polygon in polygon_unionfind.polygons() {
+        for polygon in &original_polygons {
             for window in polygon
                 .iter()
                 .zip(polygon.iter().cycle().skip(1))
                 .take(polygon.len())
             {
                 let (from, to) = window;
+                let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
+                let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;
+                draw_line(start.x, start.y, end.x, end.y, 1.0, GRAY);
+            }
+        }
+
+        for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
+            /*let bbox_origin = center + vec2(bbox_min_x as f32, -bbox_max_y as f32) * zoom;
+            let bbox_width = (bbox_max_x as f32 - bbox_min_x as f32) * zoom;
+            let bbox_height = (bbox_max_y as f32 - bbox_min_y as f32) * zoom;
+            draw_rectangle_lines(
+                bbox_origin.x,
+                bbox_origin.y,
+                bbox_width,
+                bbox_height,
+                2.0,
+                DARKGRAY,
+            );*/
+
+            for window in polygon
+                .iter()
+                .zip(polygon.iter().cycle().skip(1))
+                .take(polygon.len())
+            {
+                let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
+
+                let (from, to) = window;
                 let start = center + vec2(from.x() as f32, -from.y() as f32) * zoom;
                 let end = center + vec2(to.x() as f32, -to.y() as f32) * zoom;
-                draw_line(start.x, start.y, end.x, end.y, 3.0, WHITE);
+                draw_line(
+                    start.x + ((i + 1) * 5) as f32,
+                    start.y + ((i + 1) * 5) as f32,
+                    end.x + ((i + 1) * 5) as f32,
+                    end.y + ((i + 1) * 5) as f32,
+                    3.0,
+                    colors[i % colors.len()],
+                );
             }
         }
 
