@@ -139,7 +139,7 @@ where
     pub fn insert(&mut self, polygon: impl IntoIterator<Item = [K; 2]>) {
         let new_polygon_index = self.unionfind.new_set();
 
-        let polygon: Vec<Point2<K>> = polygon.into_iter().map(Into::into).collect();
+        let mut polygon: Vec<Point2<K>> = polygon.into_iter().map(Into::into).collect();
         let rectangle = Self::rectangle_from_polygon(&polygon);
         self.rtree
             .insert(GeomWithData::new(rectangle.clone(), new_polygon_index), ());
@@ -151,18 +151,25 @@ where
             .as_ref()
             .locate_in_envelope_intersecting(&rectangle.envelope())
         {
-            let new_polygon_representative = self.unionfind.find(new_polygon_index);
             let neighbor_representative = self.unionfind.find(neighbor.data);
+
             let union = polygon.overlay(
                 self.polygons.get(&neighbor_representative).unwrap(),
                 OverlayRule::Union,
                 FillRule::EvenOdd,
             );
 
+            if union.len() >= 2 {
+                continue;
+            }
+
             if let Some(union) = union.get(&0) {
-                self.polygons.set(neighbor_representative, union[0].clone());
                 self.unionfind
-                    .union(new_polygon_representative, neighbor_representative);
+                    .union(neighbor_representative, new_polygon_index);
+
+                let representative = self.unionfind.find(new_polygon_index);
+                self.polygons.set(representative, union[0].clone());
+                polygon = union[0].clone();
             }
         }
     }
