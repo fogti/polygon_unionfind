@@ -1,6 +1,14 @@
 [package]
 name = "polygon_unionfind"
 version = "0.1.0"
+authors = ["Mikolaj Wielgus <wielgusmikolaj@gmail.com>"]
+description = "Disjoint-set data structure (union-find) for polygons."
+repository = "https://codeberg.org/topola/polygon_unionfind"
+documentation = "https://docs.rs/polygon_unionfind"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["geometry", "unionfind"]
+categories = ["algorithms", "data-structures", "graphics", "mathematics"]
 edition = "2024"
 
 [badges]
