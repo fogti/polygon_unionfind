@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::marker::PhantomData;
+use std::{collections::BTreeSet, marker::PhantomData};
 
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -10,7 +10,7 @@ use i_overlay::{
     i_float::float::compatible::FloatPointCompatible,
 };
 
-use maplike::{Get, Insert, KeyedCollection, Push, Set};
+use maplike::{Get, Insert, IntoIter, KeyedCollection, Push, Set};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
@@ -103,7 +103,7 @@ impl<K: RTreeNum, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
     PolygonUnionFind<K, PC, PR, UFPC, UFRC>
 {
     #[inline]
-    pub fn polygons(&self) -> &PC {
+    pub fn raw_polygons(&self) -> &PC {
         &self.polygons
     }
 
@@ -122,6 +122,29 @@ impl<K: RTreeNum, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
     #[inline]
     pub fn dissolve(self) -> (PC, PR, UnionFind<UFPC, UFRC>) {
         (self.polygons, self.rtree, self.unionfind)
+    }
+}
+
+impl<
+    K: FromPrimitive + RTreeNum + ToPrimitive,
+    PC: Clone + IntoIter<usize> + Get<usize, Value = Vec<Point2<K>>> + Push<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>,
+    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+> PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+where
+    Point2<K>: Copy,
+{
+    #[inline]
+    pub fn polygons(&mut self) -> impl Iterator<Item = PC::Value> {
+        let mut deduplicating_set = BTreeSet::new();
+
+        for (i, _polygon) in self.polygons.clone().into_iter() {
+            deduplicating_set.insert(self.unionfind.find(i));
+        }
+
+        IntoIterator::into_iter(deduplicating_set).map(|i| self.polygons.get(&i).unwrap().clone())
     }
 }
 
