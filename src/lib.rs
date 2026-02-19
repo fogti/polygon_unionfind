@@ -30,8 +30,8 @@ mod unionfind;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point2<K> {
-    x: K,
-    y: K,
+    pub x: K,
+    pub y: K,
 }
 
 impl<K: Copy> From<[K; 2]> for Point2<K> {
