@@ -67,6 +67,8 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit))]
 pub struct PolygonUnionFind<
     K: RTreeNum,
     PC: KeyedCollection = Vec<Vec<Point2<K>>>,

@@ -5,6 +5,8 @@
 use maplike::{Get, Push, Set};
 
 /// Disjoint-set union data structure, also known as Union-Find.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit))]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
     parents: PC,
