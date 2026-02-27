@@ -82,6 +82,15 @@ pub struct PolygonUnionFind<
     scalar_marker: PhantomData<K>,
 }
 
+#[cfg(feature = "undoredo")]
+pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
+    K,
+    undoredo::Recorder<Vec<Vec<Point2<K>>>>,
+    undoredo::Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    undoredo::Recorder<Vec<usize>>,
+    undoredo::Recorder<Vec<usize>>,
+>;
+
 impl<
     K: RTreeNum,
     PC: Default + KeyedCollection,

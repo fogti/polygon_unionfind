@@ -7,6 +7,9 @@ name = "macroquad_viewer"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+undoredo = ["polygon_unionfind/undoredo"]
+
 [dependencies]
 i_overlay = "4.4"
 macroquad = "0.4"

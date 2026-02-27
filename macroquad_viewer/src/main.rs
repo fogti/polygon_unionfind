@@ -6,7 +6,7 @@ use ::rand::Rng;
 use ::rand::thread_rng;
 use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
-use polygon_unionfind::PolygonUnionFind;
+use polygon_unionfind::RecordingPolygonUnionFind;
 use std::f64::consts::PI;
 
 /*fn generate_random_polygons(
@@ -80,7 +80,7 @@ fn generate_random_radial_polygons(
 
 #[macroquad::main("Polygon Union-Find Viewer")]
 async fn main() {
-    let mut polygon_unionfind: PolygonUnionFind<i64> = PolygonUnionFind::new();
+    let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
     let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
     let mut curr_original_polygon = 0;
 
@@ -131,7 +131,7 @@ async fn main() {
             }
         }
 
-        for geom_with_data in polygon_unionfind.rtree().rtree.iter() {
+        for geom_with_data in polygon_unionfind.rtree().collection().iter() {
             let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
             let [bbox_max_x, bbox_max_y] = geom_with_data.geom().upper();
 
