@@ -6,8 +6,9 @@ use ::rand::Rng;
 use ::rand::thread_rng;
 use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
-use polygon_unionfind::RecordingPolygonUnionFind;
+use polygon_unionfind::{PolygonUnionFind, RecordingPolygonUnionFind};
 use std::f64::consts::PI;
+use undoredo::{FlushEdit, UndoRedo};
 
 /*fn generate_random_polygons(
     count: usize,
@@ -80,6 +81,7 @@ fn generate_random_radial_polygons(
 
 #[macroquad::main("Polygon Union-Find Viewer")]
 async fn main() {
+    let mut undoredo: UndoRedo<RecordingPolygonUnionFind<i64>> = UndoRedo::new();
     let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
     let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
     let mut curr_original_polygon = 0;
@@ -89,15 +91,33 @@ async fn main() {
     let mut last_mouse_pos: Option<Vec2> = None;
 
     loop {
+        let undo_button = Rect::new(20.0, 20.0, 100.0, 36.0);
+        let redo_button = Rect::new(130.0, 20.0, 100.0, 36.0);
+        let (mx, my) = mouse_position();
+        let mouse = vec2(mx, my);
+        let left_pressed = is_mouse_button_pressed(MouseButton::Left);
+        let undo_clicked = left_pressed && undo_button.contains(mouse);
+        let redo_clicked = left_pressed && redo_button.contains(mouse);
+
+        if undo_clicked {
+            undoredo.undo(&mut polygon_unionfind);
+        }
+
+        if redo_clicked {
+            undoredo.redo(&mut polygon_unionfind);
+        }
+
         let (_, scroll_y) = mouse_wheel();
         if scroll_y != 0.0 {
             zoom *= 1.0 + scroll_y * 0.1;
             zoom = zoom.clamp(0.1, 20.0);
         }
 
-        if is_mouse_button_down(MouseButton::Left) {
+        if is_mouse_button_down(MouseButton::Right) {
             if curr_original_polygon < original_polygons.len() {
                 polygon_unionfind.insert(original_polygons[curr_original_polygon].clone());
+                undoredo.commit(polygon_unionfind.flush_edit());
+
                 curr_original_polygon += 1;
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
@@ -115,6 +135,35 @@ async fn main() {
         }
 
         clear_background(BLACK);
+
+        draw_rectangle(
+            undo_button.x,
+            undo_button.y,
+            undo_button.w,
+            undo_button.h,
+            DARKGRAY,
+        );
+        draw_text(
+            "undo",
+            undo_button.x + 26.0,
+            undo_button.y + 24.0,
+            28.0,
+            WHITE,
+        );
+        draw_rectangle(
+            redo_button.x,
+            redo_button.y,
+            redo_button.w,
+            redo_button.h,
+            DARKGRAY,
+        );
+        draw_text(
+            "redo",
+            redo_button.x + 26.0,
+            redo_button.y + 24.0,
+            28.0,
+            WHITE,
+        );
 
         let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
 

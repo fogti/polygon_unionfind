@@ -6,7 +6,7 @@ use maplike::{Get, Push, Set};
 
 /// Disjoint-set union data structure, also known as Union-Find.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit))]
+#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit, undoredo::FlushEdit))]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
     parents: PC,
@@ -65,11 +65,19 @@ impl<
 
     /// Find the representative of `x`, performing path compression along the
     /// way.
-    pub fn find(&mut self, x: usize) -> usize {
+    pub fn find_compress(&mut self, x: usize) -> usize {
         if *self.parents.get(&x).unwrap() != x {
             // Perform the path compression.
-            let parent = self.find(*self.parents.get(&x).unwrap());
+            let parent = self.find_compress(*self.parents.get(&x).unwrap());
             self.parents.set(x, parent);
+        }
+
+        *self.parents.get(&x).unwrap()
+    }
+
+    pub fn find(&mut self, x: usize) -> usize {
+        if *self.parents.get(&x).unwrap() != x {
+            return self.find(*self.parents.get(&x).unwrap());
         }
 
         *self.parents.get(&x).unwrap()
@@ -79,8 +87,8 @@ impl<
     ///
     /// Returns true if merged, false if already in the same set.
     pub fn union(&mut self, x: usize, y: usize) -> bool {
-        let mut x_representative = self.find(x);
-        let mut y_representative = self.find(y);
+        let mut x_representative = self.find_compress(x);
+        let mut y_representative = self.find_compress(y);
 
         if x_representative == y_representative {
             return false; // Already connected.
@@ -105,7 +113,7 @@ impl<
 
     /// Check if `x` and `y` are in the same set.
     pub fn connected(&mut self, x: usize, y: usize) -> bool {
-        self.find(x) == self.find(y)
+        self.find_compress(x) == self.find_compress(y)
     }
 }
 
@@ -146,10 +154,10 @@ mod tests {
         let mut unionfind: UnionFind<Vec<usize>> = UnionFind::with_len(3);
 
         unionfind.union(0, 1);
-        let representative_before = unionfind.find(0);
+        let representative_before = unionfind.find_compress(0);
 
         unionfind.union(0, 1); // Perform union on the same pair again.
-        let representative_after = unionfind.find(1);
+        let representative_after = unionfind.find_compress(1);
 
         assert_eq!(representative_before, representative_after);
     }
@@ -160,17 +168,17 @@ mod tests {
         unionfind.union(0, 1);
         unionfind.union(1, 2);
 
-        let representative0 = unionfind.find(0);
-        let representative1 = unionfind.find(1);
-        let representative2 = unionfind.find(2);
+        let representative0 = unionfind.find_compress(0);
+        let representative1 = unionfind.find_compress(1);
+        let representative2 = unionfind.find_compress(2);
 
         // The first three elements should have the same representative.
         assert_eq!(representative0, representative1);
         assert_eq!(representative1, representative2);
 
         // 3 and 4 are however still separate.
-        assert_ne!(unionfind.find(3), representative0);
-        assert_ne!(unionfind.find(4), representative0);
+        assert_ne!(unionfind.find_compress(3), representative0);
+        assert_ne!(unionfind.find_compress(4), representative0);
     }
 
     #[test]

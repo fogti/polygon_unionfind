@@ -10,6 +10,10 @@ use i_overlay::{
     i_float::float::compatible::FloatPointCompatible,
 };
 
+// Temporary.
+use stable_vec::StableVec;
+
+use alloc::collections::BTreeMap;
 use maplike::{Get, Insert, IntoIter, KeyedCollection, Push, Set};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rstar::{
@@ -68,7 +72,7 @@ where
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit))]
+#[cfg_attr(feature = "undoredo", derive(undoredo::ApplyEdit, undoredo::FlushEdit))]
 pub struct PolygonUnionFind<
     K: RTreeNum,
     PC: KeyedCollection = Vec<Vec<Point2<K>>>,
@@ -85,10 +89,19 @@ pub struct PolygonUnionFind<
 #[cfg(feature = "undoredo")]
 pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
     K,
-    undoredo::Recorder<Vec<Vec<Point2<K>>>>,
+    // Temporary.
+    undoredo::Recorder<StableVec<Vec<Point2<K>>>>,
+    undoredo::Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    undoredo::Recorder<StableVec<usize>>,
+    undoredo::Recorder<StableVec<usize>>,
+    /*undoredo::Recorder<Vec<Vec<Point2<K>>>>,
     undoredo::Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
     undoredo::Recorder<Vec<usize>>,
-    undoredo::Recorder<Vec<usize>>,
+    undoredo::Recorder<Vec<usize>>,*/
+    /*undoredo::Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
+    undoredo::Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    undoredo::Recorder<Vec<usize>, BTreeMap<usize, usize>>,
+    undoredo::Recorder<Vec<usize>, BTreeMap<usize, usize>>,*/
 >;
 
 impl<
@@ -185,7 +198,7 @@ where
             .as_ref()
             .locate_in_envelope_intersecting(&rectangle.envelope())
         {
-            let neighbor_representative = self.unionfind.find(neighbor.data);
+            let neighbor_representative = self.unionfind.find_compress(neighbor.data);
 
             let union = polygon.overlay(
                 self.polygons.get(&neighbor_representative).unwrap(),
@@ -201,7 +214,7 @@ where
                 self.unionfind
                     .union(neighbor_representative, new_polygon_index);
 
-                let representative = self.unionfind.find(new_polygon_index);
+                let representative = self.unionfind.find_compress(new_polygon_index);
                 self.polygons.set(representative, union[0].clone());
                 polygon = union[0].clone();
             }
