@@ -6,7 +6,7 @@ use ::rand::Rng;
 use ::rand::thread_rng;
 use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
-use polygon_unionfind::{PolygonUnionFind, RecordingPolygonUnionFind};
+use polygon_unionfind::RecordingPolygonUnionFind;
 use std::f64::consts::PI;
 use undoredo::{FlushEdit, UndoRedo};
 
@@ -81,7 +81,7 @@ fn generate_random_radial_polygons(
 
 #[macroquad::main("Polygon Union-Find Viewer")]
 async fn main() {
-    let mut undoredo: UndoRedo<RecordingPolygonUnionFind<i64>> = UndoRedo::new();
+    let mut undoredo: UndoRedo<_, ()> = UndoRedo::new();
     let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
     let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
     let mut curr_original_polygon = 0;
