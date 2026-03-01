@@ -17,7 +17,6 @@ maintenance = { status = "actively-developed" }
 [features]
 default = ["std"]
 std = []
-stable-vec = ["dep:stable-vec", "maplike/stable-vec", "undoredo/stable-vec"]
 
 [dependencies]
 i_overlay = "4.4"
@@ -25,7 +24,6 @@ maplike = "0.8"
 num-traits = "0.2"
 rstar = "0.12"
 rstared = "0.8"
-stable-vec = { version = "0.4", optional = true }
 undoredo = { version = "0.8", features = ["derive", "rstar"], optional = true }
 
 [package.metadata.docs.rs]

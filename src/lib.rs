@@ -29,7 +29,7 @@ extern crate alloc;
 #[cfg(feature = "undoredo")]
 mod undoredo;
 #[cfg(feature = "undoredo")]
-pub use undoredo::{PolygonUnionFindEdit, RecordingPolygonUnionFind};
+pub use undoredo::{PolygonUnionFindDelta, RecordingPolygonUnionFind};
 
 mod unionfind;
 
@@ -180,8 +180,7 @@ where
             .as_ref()
             .locate_in_envelope_intersecting(&rectangle.envelope())
         {
-            //let neighbor_representative = self.unionfind.find_compress(neighbor.data);
-            let neighbor_representative = self.unionfind.find(neighbor.data);
+            let neighbor_representative = self.unionfind.find_compress(neighbor.data);
 
             let union = polygon.overlay(
                 self.polygons.get(&neighbor_representative).unwrap(),

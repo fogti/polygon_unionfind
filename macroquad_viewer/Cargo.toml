@@ -10,6 +10,6 @@ edition = "2024"
 [dependencies]
 i_overlay = "4.4"
 macroquad = "0.4"
-polygon_unionfind = { features = ["undoredo", "stable-vec"], path = ".." }
+polygon_unionfind = { features = ["undoredo"], path = ".." }
 rand = "0.8"
 undoredo = "0.8"

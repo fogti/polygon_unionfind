@@ -6,12 +6,9 @@ use ::rand::Rng;
 use ::rand::thread_rng;
 use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
-use polygon_unionfind::{
-    Point2, PolygonUnionFind, PolygonUnionFindEdit, RecordingPolygonUnionFind,
-};
-use std::collections::BTreeMap;
+use polygon_unionfind::{PolygonUnionFindDelta, RecordingPolygonUnionFind};
 use std::f64::consts::PI;
-use undoredo::{FlushEdit, UndoRedo};
+use undoredo::{FlushDelta, UndoRedo};
 
 /*fn generate_random_polygons(
     count: usize,
@@ -86,7 +83,7 @@ fn generate_random_radial_polygons(
 async fn main() {
     /*let mut undoredo: UndoRedo<PolygonUnionFind<i64, BTreeMap<usize, Vec<Point2<i64>>>>> =
     UndoRedo::new();*/
-    let mut undoredo: UndoRedo<PolygonUnionFindEdit<i64>> = UndoRedo::new();
+    let mut undoredo: UndoRedo<PolygonUnionFindDelta<i64>> = UndoRedo::new();
     let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
     let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
     let mut curr_original_polygon = 0;
@@ -121,7 +118,7 @@ async fn main() {
         if is_mouse_button_down(MouseButton::Right) {
             if curr_original_polygon < original_polygons.len() {
                 polygon_unionfind.insert(original_polygons[curr_original_polygon].clone());
-                undoredo.commit(polygon_unionfind.flush_edit());
+                undoredo.commit(polygon_unionfind.flush_delta());
 
                 curr_original_polygon += 1;
                 std::thread::sleep(std::time::Duration::from_millis(100));

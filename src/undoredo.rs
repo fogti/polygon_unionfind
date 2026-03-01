@@ -10,8 +10,7 @@ use rstar::{
     RTree, RTreeNum,
     primitives::{GeomWithData, Rectangle},
 };
-use stable_vec::StableVec;
-use undoredo::{ApplyEdit, Edit, FlushEdit, Recorder};
+use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 use crate::{Point2, PolygonUnionFind, UnionFind};
 
@@ -19,11 +18,11 @@ pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
     K,
     Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
     Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
-    Recorder<StableVec<usize>>,
-    Recorder<StableVec<usize>>,
+    Recorder<Vec<usize>>,
+    Recorder<Vec<usize>>,
 >;
 
-pub type PolygonUnionFindEdit<K> = PolygonUnionFind<
+pub type PolygonUnionFindDelta<K> = PolygonUnionFind<
     K,
     BTreeMap<usize, Vec<Point2<K>>>,
     BTreeMap<GeomWithData<Rectangle<[K; 2]>, usize>, ()>,
@@ -34,51 +33,51 @@ pub type PolygonUnionFindEdit<K> = PolygonUnionFind<
 impl<
     K: RTreeNum,
     PCE: Clone + KeyedCollection,
-    PC: KeyedCollection + Clone + ApplyEdit<PCE>,
+    PC: KeyedCollection + Clone + ApplyDelta<PCE>,
     PRE: Clone + KeyedCollection,
-    PR: KeyedCollection + Clone + ApplyEdit<PRE>,
+    PR: KeyedCollection + Clone + ApplyDelta<PRE>,
     UFPCE: Clone + KeyedCollection,
-    UFPC: Clone + ApplyEdit<UFPCE>,
+    UFPC: Clone + ApplyDelta<UFPCE>,
     UFRCE: Clone + KeyedCollection,
-    UFRC: Clone + ApplyEdit<UFRCE>,
-> ApplyEdit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    UFRC: Clone + ApplyDelta<UFRCE>,
+> ApplyDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
     for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
 {
-    fn apply_edit(&mut self, edit: &Edit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>) {
-        let (removed, inserted) = edit.clone().dissolve();
+    fn apply_delta(&mut self, delta: &Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>) {
+        let (removed, inserted) = delta.clone().dissolve();
 
-        let polygons_edit =
-            undoredo::Edit::with_removed_inserted(removed.polygons, inserted.polygons);
-        self.polygons.apply_edit(&polygons_edit);
+        let polygons_delta =
+            undoredo::Delta::with_removed_inserted(removed.polygons, inserted.polygons);
+        self.polygons.apply_delta(&polygons_delta);
 
-        let rtree_edit = undoredo::Edit::with_removed_inserted(removed.rtree, inserted.rtree);
-        self.rtree.apply_edit(&rtree_edit);
+        let rtree_delta = undoredo::Delta::with_removed_inserted(removed.rtree, inserted.rtree);
+        self.rtree.apply_delta(&rtree_delta);
 
-        let unionfind_edit =
-            undoredo::Edit::with_removed_inserted(removed.unionfind, inserted.unionfind);
-        self.unionfind.apply_edit(&unionfind_edit);
+        let unionfind_delta =
+            undoredo::Delta::with_removed_inserted(removed.unionfind, inserted.unionfind);
+        self.unionfind.apply_delta(&unionfind_delta);
     }
 }
 
 impl<
     K: RTreeNum,
     PCE: Clone + KeyedCollection,
-    PC: KeyedCollection + FlushEdit<PCE>,
+    PC: KeyedCollection + FlushDelta<PCE>,
     PRE: Clone + KeyedCollection,
-    PR: KeyedCollection + FlushEdit<PRE>,
+    PR: KeyedCollection + FlushDelta<PRE>,
     UFPCE: Clone + KeyedCollection,
-    UFPC: FlushEdit<UFPCE>,
+    UFPC: FlushDelta<UFPCE>,
     UFRCE: Clone + KeyedCollection,
-    UFRC: FlushEdit<UFRCE>,
-> FlushEdit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    UFRC: FlushDelta<UFRCE>,
+> FlushDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
     for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
 {
-    fn flush_edit(&mut self) -> Edit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>> {
-        let (removed_polygons, inserted_polygons) = self.polygons.flush_edit().dissolve();
-        let (removed_rtree, inserted_rtree) = self.rtree.flush_edit().dissolve();
-        let (removed_unionfind, inserted_unionfind) = self.unionfind.flush_edit().dissolve();
+    fn flush_delta(&mut self) -> Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>> {
+        let (removed_polygons, inserted_polygons) = self.polygons.flush_delta().dissolve();
+        let (removed_rtree, inserted_rtree) = self.rtree.flush_delta().dissolve();
+        let (removed_unionfind, inserted_unionfind) = self.unionfind.flush_delta().dissolve();
 
-        undoredo::Edit::with_removed_inserted(
+        undoredo::Delta::with_removed_inserted(
             PolygonUnionFind {
                 polygons: removed_polygons,
                 rtree: removed_rtree,
@@ -97,30 +96,31 @@ impl<
 
 impl<
     PCE: Clone + KeyedCollection,
-    PC: Clone + ApplyEdit<PCE>,
+    PC: Clone + ApplyDelta<PCE>,
     RCE: Clone + KeyedCollection,
-    RC: Clone + ApplyEdit<RCE>,
-> ApplyEdit<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+    RC: Clone + ApplyDelta<RCE>,
+> ApplyDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
 {
-    fn apply_edit(&mut self, edit: &Edit<UnionFind<PCE, RCE>>) {
-        let (removed, inserted) = edit.clone().dissolve();
+    fn apply_delta(&mut self, delta: &Delta<UnionFind<PCE, RCE>>) {
+        let (removed, inserted) = delta.clone().dissolve();
 
-        let parents_edit = undoredo::Edit::with_removed_inserted(removed.parents, inserted.parents);
-        self.parents.apply_edit(&parents_edit);
+        let parents_delta =
+            undoredo::Delta::with_removed_inserted(removed.parents, inserted.parents);
+        self.parents.apply_delta(&parents_delta);
 
-        let ranks_edit = undoredo::Edit::with_removed_inserted(removed.ranks, inserted.ranks);
-        self.ranks.apply_edit(&ranks_edit);
+        let ranks_delta = undoredo::Delta::with_removed_inserted(removed.ranks, inserted.ranks);
+        self.ranks.apply_delta(&ranks_delta);
     }
 }
 
-impl<PCE: KeyedCollection, PC: FlushEdit<PCE>, RCE: KeyedCollection, RC: FlushEdit<RCE>>
-    FlushEdit<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+impl<PCE: KeyedCollection, PC: FlushDelta<PCE>, RCE: KeyedCollection, RC: FlushDelta<RCE>>
+    FlushDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
 {
-    fn flush_edit(&mut self) -> Edit<UnionFind<PCE, RCE>> {
-        let (removed_parents, inserted_parents) = self.parents.flush_edit().dissolve();
-        let (removed_ranks, inserted_ranks) = self.ranks.flush_edit().dissolve();
+    fn flush_delta(&mut self) -> Delta<UnionFind<PCE, RCE>> {
+        let (removed_parents, inserted_parents) = self.parents.flush_delta().dissolve();
+        let (removed_ranks, inserted_ranks) = self.ranks.flush_delta().dissolve();
 
-        undoredo::Edit::with_removed_inserted(
+        undoredo::Delta::with_removed_inserted(
             UnionFind::from_parents_ranks(removed_parents, removed_ranks),
             UnionFind::from_parents_ranks(inserted_parents, inserted_ranks),
         )
