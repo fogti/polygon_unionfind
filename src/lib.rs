@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{
-    collections::BTreeSet,
-    marker::PhantomData,
-};
+use std::{collections::BTreeSet, marker::PhantomData};
 
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -32,7 +29,7 @@ extern crate alloc;
 #[cfg(feature = "undoredo")]
 mod undoredo;
 #[cfg(feature = "undoredo")]
-pub use undoredo::RecordingPolygonUnionFind;
+pub use undoredo::{PolygonUnionFindEdit, RecordingPolygonUnionFind};
 
 mod unionfind;
 

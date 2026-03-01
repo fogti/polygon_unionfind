@@ -8,9 +8,9 @@ use maplike::{Get, Push, Set};
 #[derive(Clone, Debug)]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
-    parents: PC,
+    pub(crate) parents: PC,
     /// `ranks[i]` is the upper bound of tree height for node `i`.
-    ranks: RC,
+    pub(crate) ranks: RC,
 }
 
 impl<
@@ -113,38 +113,6 @@ impl<
     /// Check if `x` and `y` are in the same set.
     pub fn connected(&mut self, x: usize, y: usize) -> bool {
         self.find_compress(x) == self.find_compress(y)
-    }
-}
-
-#[cfg(feature = "undoredo")]
-impl<PC: Clone + undoredo::ApplyEdit<PC>, RC: Clone + undoredo::ApplyEdit<RC>>
-    undoredo::ApplyEdit<UnionFind<PC, RC>> for UnionFind<PC, RC>
-{
-    fn apply_edit(&mut self, edit: &undoredo::Edit<UnionFind<PC, RC>>) {
-        let (removed, inserted) = edit.clone().dissolve();
-
-        let parents_edit = undoredo::Edit::with_removed_inserted(removed.parents, inserted.parents);
-        undoredo::ApplyEdit::apply_edit(&mut self.parents, &parents_edit);
-
-        let ranks_edit = undoredo::Edit::with_removed_inserted(removed.ranks, inserted.ranks);
-        undoredo::ApplyEdit::apply_edit(&mut self.ranks, &ranks_edit);
-    }
-}
-
-#[cfg(feature = "undoredo")]
-impl<PC: undoredo::FlushEdit<PC>, RC: undoredo::FlushEdit<RC>>
-    undoredo::FlushEdit<UnionFind<PC, RC>> for UnionFind<PC, RC>
-{
-    fn flush_edit(&mut self) -> undoredo::Edit<UnionFind<PC, RC>> {
-        let (removed_parents, inserted_parents) =
-            undoredo::FlushEdit::flush_edit(&mut self.parents).dissolve();
-        let (removed_ranks, inserted_ranks) =
-            undoredo::FlushEdit::flush_edit(&mut self.ranks).dissolve();
-
-        undoredo::Edit::with_removed_inserted(
-            UnionFind::from_parents_ranks(removed_parents, removed_ranks),
-            UnionFind::from_parents_ranks(inserted_parents, inserted_ranks),
-        )
     }
 }
 

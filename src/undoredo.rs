@@ -13,17 +13,38 @@ use rstar::{
 use stable_vec::StableVec;
 use undoredo::{ApplyEdit, Edit, FlushEdit, Recorder};
 
-use crate::{Point2, PolygonUnionFind};
+use crate::{Point2, PolygonUnionFind, UnionFind};
+
+pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
+    K,
+    Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
+    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    Recorder<StableVec<usize>>,
+    Recorder<StableVec<usize>>,
+>;
+
+pub type PolygonUnionFindEdit<K> = PolygonUnionFind<
+    K,
+    BTreeMap<usize, Vec<Point2<K>>>,
+    BTreeMap<GeomWithData<Rectangle<[K; 2]>, usize>, ()>,
+    BTreeMap<usize, usize>,
+    BTreeMap<usize, usize>,
+>;
 
 impl<
     K: RTreeNum,
-    PC: KeyedCollection + Clone + ApplyEdit<PC>,
-    PR: KeyedCollection + Clone + ApplyEdit<PR>,
-    UFPC: Clone + ApplyEdit<UFPC>,
-    UFRC: Clone + ApplyEdit<UFRC>,
-> ApplyEdit<PolygonUnionFind<K, PC, PR, UFPC, UFRC>> for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+    PCE: Clone + KeyedCollection,
+    PC: KeyedCollection + Clone + ApplyEdit<PCE>,
+    PRE: Clone + KeyedCollection,
+    PR: KeyedCollection + Clone + ApplyEdit<PRE>,
+    UFPCE: Clone + KeyedCollection,
+    UFPC: Clone + ApplyEdit<UFPCE>,
+    UFRCE: Clone + KeyedCollection,
+    UFRC: Clone + ApplyEdit<UFRCE>,
+> ApplyEdit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
 {
-    fn apply_edit(&mut self, edit: &Edit<PolygonUnionFind<K, PC, PR, UFPC, UFRC>>) {
+    fn apply_edit(&mut self, edit: &Edit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>) {
         let (removed, inserted) = edit.clone().dissolve();
 
         let polygons_edit =
@@ -41,13 +62,18 @@ impl<
 
 impl<
     K: RTreeNum,
-    PC: KeyedCollection + FlushEdit<PC>,
-    PR: KeyedCollection + FlushEdit<PR>,
-    UFPC: FlushEdit<UFPC>,
-    UFRC: FlushEdit<UFRC>,
-> FlushEdit<PolygonUnionFind<K, PC, PR, UFPC, UFRC>> for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+    PCE: Clone + KeyedCollection,
+    PC: KeyedCollection + FlushEdit<PCE>,
+    PRE: Clone + KeyedCollection,
+    PR: KeyedCollection + FlushEdit<PRE>,
+    UFPCE: Clone + KeyedCollection,
+    UFPC: FlushEdit<UFPCE>,
+    UFRCE: Clone + KeyedCollection,
+    UFRC: FlushEdit<UFRCE>,
+> FlushEdit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
 {
-    fn flush_edit(&mut self) -> Edit<PolygonUnionFind<K, PC, PR, UFPC, UFRC>> {
+    fn flush_edit(&mut self) -> Edit<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>> {
         let (removed_polygons, inserted_polygons) = self.polygons.flush_edit().dissolve();
         let (removed_rtree, inserted_rtree) = self.rtree.flush_edit().dissolve();
         let (removed_unionfind, inserted_unionfind) = self.unionfind.flush_edit().dissolve();
@@ -69,10 +95,34 @@ impl<
     }
 }
 
-pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
-    K,
-    Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
-    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
-    Recorder<StableVec<usize>>,
-    Recorder<StableVec<usize>>,
->;
+impl<
+    PCE: Clone + KeyedCollection,
+    PC: Clone + ApplyEdit<PCE>,
+    RCE: Clone + KeyedCollection,
+    RC: Clone + ApplyEdit<RCE>,
+> ApplyEdit<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+{
+    fn apply_edit(&mut self, edit: &Edit<UnionFind<PCE, RCE>>) {
+        let (removed, inserted) = edit.clone().dissolve();
+
+        let parents_edit = undoredo::Edit::with_removed_inserted(removed.parents, inserted.parents);
+        self.parents.apply_edit(&parents_edit);
+
+        let ranks_edit = undoredo::Edit::with_removed_inserted(removed.ranks, inserted.ranks);
+        self.ranks.apply_edit(&ranks_edit);
+    }
+}
+
+impl<PCE: KeyedCollection, PC: FlushEdit<PCE>, RCE: KeyedCollection, RC: FlushEdit<RCE>>
+    FlushEdit<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+{
+    fn flush_edit(&mut self) -> Edit<UnionFind<PCE, RCE>> {
+        let (removed_parents, inserted_parents) = self.parents.flush_edit().dissolve();
+        let (removed_ranks, inserted_ranks) = self.ranks.flush_edit().dissolve();
+
+        undoredo::Edit::with_removed_inserted(
+            UnionFind::from_parents_ranks(removed_parents, removed_ranks),
+            UnionFind::from_parents_ranks(inserted_parents, inserted_ranks),
+        )
+    }
+}
