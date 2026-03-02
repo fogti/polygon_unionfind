@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{collections::BTreeSet, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    marker::PhantomData,
+};
 
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -17,6 +20,8 @@ use rstar::{
     primitives::{GeomWithData, Rectangle},
 };
 use rstared::AsRefRTree;
+#[cfg(feature = "undoredo")]
+use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 use crate::unionfind::UnionFind;
 
@@ -25,11 +30,6 @@ extern crate std;
 
 // No feature for `alloc` because it would be always enabled anyway.
 extern crate alloc;
-
-#[cfg(feature = "undoredo")]
-mod undoredo;
-#[cfg(feature = "undoredo")]
-pub use undoredo::{PolygonUnionFindDelta, RecordingPolygonUnionFind};
 
 mod unionfind;
 
@@ -215,9 +215,91 @@ where
     }
 }
 
+#[cfg(feature = "undoredo")]
+pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
+    K,
+    Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
+    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    Recorder<Vec<usize>>,
+    Recorder<Vec<usize>>,
+>;
+
+#[cfg(feature = "undoredo")]
+pub type PolygonUnionFindDelta<K> = PolygonUnionFind<
+    K,
+    BTreeMap<usize, Vec<Point2<K>>>,
+    BTreeMap<GeomWithData<Rectangle<[K; 2]>, usize>, ()>,
+    BTreeMap<usize, usize>,
+    BTreeMap<usize, usize>,
+>;
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    PCE: Clone + KeyedCollection,
+    PC: KeyedCollection + Clone + ApplyDelta<PCE>,
+    PRE: Clone + KeyedCollection,
+    PR: KeyedCollection + Clone + ApplyDelta<PRE>,
+    UFPCE: Clone + KeyedCollection,
+    UFPC: Clone + ApplyDelta<UFPCE>,
+    UFRCE: Clone + KeyedCollection,
+    UFRC: Clone + ApplyDelta<UFRCE>,
+> ApplyDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+{
+    fn apply_delta(&mut self, delta: &Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>) {
+        let (removed, inserted) = delta.clone().dissolve();
+
+        let polygons_delta = Delta::with_removed_inserted(removed.polygons, inserted.polygons);
+        self.polygons.apply_delta(&polygons_delta);
+
+        let rtree_delta = Delta::with_removed_inserted(removed.rtree, inserted.rtree);
+        self.rtree.apply_delta(&rtree_delta);
+
+        let unionfind_delta = Delta::with_removed_inserted(removed.unionfind, inserted.unionfind);
+        self.unionfind.apply_delta(&unionfind_delta);
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    PCE: Clone + KeyedCollection,
+    PC: KeyedCollection + FlushDelta<PCE>,
+    PRE: Clone + KeyedCollection,
+    PR: KeyedCollection + FlushDelta<PRE>,
+    UFPCE: Clone + KeyedCollection,
+    UFPC: FlushDelta<UFPCE>,
+    UFRCE: Clone + KeyedCollection,
+    UFRC: FlushDelta<UFRCE>,
+> FlushDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+{
+    fn flush_delta(&mut self) -> Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>> {
+        let (removed_polygons, inserted_polygons) = self.polygons.flush_delta().dissolve();
+        let (removed_rtree, inserted_rtree) = self.rtree.flush_delta().dissolve();
+        let (removed_unionfind, inserted_unionfind) = self.unionfind.flush_delta().dissolve();
+
+        Delta::with_removed_inserted(
+            PolygonUnionFind {
+                polygons: removed_polygons,
+                rtree: removed_rtree,
+                unionfind: removed_unionfind,
+                scalar_marker: PhantomData,
+            },
+            PolygonUnionFind {
+                polygons: inserted_polygons,
+                rtree: inserted_rtree,
+                unionfind: inserted_unionfind,
+                scalar_marker: PhantomData,
+            },
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    //use super::*;
 
     // TODO: tests.
 }

@@ -2,15 +2,19 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(feature = "undoredo")]
+use maplike::KeyedCollection;
 use maplike::{Get, Push, Set};
+#[cfg(feature = "undoredo")]
+use undoredo::{ApplyDelta, Delta, FlushDelta};
 
 /// Disjoint-set union data structure, also known as Union-Find.
 #[derive(Clone, Debug)]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
-    pub(crate) parents: PC,
+    parents: PC,
     /// `ranks[i]` is the upper bound of tree height for node `i`.
-    pub(crate) ranks: RC,
+    ranks: RC,
 }
 
 impl<
@@ -113,6 +117,46 @@ impl<
     /// Check if `x` and `y` are in the same set.
     pub fn connected(&mut self, x: usize, y: usize) -> bool {
         self.find_compress(x) == self.find_compress(y)
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<
+    PCE: Clone + KeyedCollection,
+    PC: Clone + ApplyDelta<PCE>,
+    RCE: Clone + KeyedCollection,
+    RC: Clone + ApplyDelta<RCE>,
+> ApplyDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+{
+    fn apply_delta(&mut self, delta: &Delta<UnionFind<PCE, RCE>>) {
+        let (removed, inserted) = delta.clone().dissolve();
+
+        let parents_delta = Delta::with_removed_inserted(removed.parents, inserted.parents);
+        self.parents.apply_delta(&parents_delta);
+
+        let ranks_delta = Delta::with_removed_inserted(removed.ranks, inserted.ranks);
+        self.ranks.apply_delta(&ranks_delta);
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<PCE: KeyedCollection, PC: FlushDelta<PCE>, RCE: KeyedCollection, RC: FlushDelta<RCE>>
+    FlushDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
+{
+    fn flush_delta(&mut self) -> Delta<UnionFind<PCE, RCE>> {
+        let (removed_parents, inserted_parents) = self.parents.flush_delta().dissolve();
+        let (removed_ranks, inserted_ranks) = self.ranks.flush_delta().dissolve();
+
+        Delta::with_removed_inserted(
+            UnionFind {
+                parents: removed_parents,
+                ranks: removed_ranks,
+            },
+            UnionFind {
+                parents: inserted_parents,
+                ranks: inserted_ranks,
+            },
+        )
     }
 }
 
