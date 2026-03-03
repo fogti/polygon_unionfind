@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    marker::PhantomData,
-};
+use std::{collections::BTreeSet, marker::PhantomData};
 
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -13,13 +10,15 @@ use i_overlay::{
     i_float::float::compatible::FloatPointCompatible,
 };
 
-use maplike::{Get, Insert, IntoIter, KeyedCollection, Push, Set};
+use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Set};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
 use rstared::AsRefRTree;
+#[cfg(feature = "undoredo")]
+use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
@@ -212,6 +211,16 @@ where
                     aabb.merged(&AABB::from_point([vertex.x, vertex.y]))
                 }),
         )
+    }
+}
+
+impl<K: RTreeNum, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
+    PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+{
+    pub fn clear(&mut self) {
+        self.polygons.clear();
+        self.rtree.clear();
+        self.unionfind.clear();
     }
 }
 

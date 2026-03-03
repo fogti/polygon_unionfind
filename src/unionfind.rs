@@ -4,7 +4,7 @@
 
 #[cfg(feature = "undoredo")]
 use maplike::KeyedCollection;
-use maplike::{Get, Push, Set};
+use maplike::{Clear, Get, Push, Set};
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta};
 
@@ -117,6 +117,13 @@ impl<
     /// Check if `x` and `y` are in the same set.
     pub fn connected(&mut self, x: usize, y: usize) -> bool {
         self.find_compress(x) == self.find_compress(y)
+    }
+}
+
+impl<PC: Clear, RC: Clear> UnionFind<PC, RC> {
+    pub fn clear(&mut self) {
+        self.parents.clear();
+        self.ranks.clear();
     }
 }
 
