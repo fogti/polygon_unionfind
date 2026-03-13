@@ -164,7 +164,7 @@ impl<
 where
     Point2<K>: Copy,
 {
-    pub fn insert(&mut self, polygon: impl IntoIterator<Item = [K; 2]>) {
+    pub fn insert(&mut self, polygon: impl IntoIterator<Item = [K; 2]>) -> usize {
         let new_polygon_index = self.unionfind.new_set();
 
         let mut polygon: Vec<Point2<K>> = polygon.into_iter().map(Into::into).collect();
@@ -172,7 +172,7 @@ where
         self.rtree
             .insert(GeomWithData::new(rectangle.clone(), new_polygon_index), ());
 
-        self.polygons.push(polygon.clone());
+        let id = self.polygons.push(polygon.clone());
 
         for neighbor in self
             .rtree
@@ -201,6 +201,8 @@ where
                 polygon = union[0].clone();
             }
         }
+
+        id
     }
 
     fn rectangle_from_polygon(vertices: &[Point2<K>]) -> Rectangle<[K; 2]> {
