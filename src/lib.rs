@@ -32,13 +32,19 @@ extern crate alloc;
 
 mod unionfind;
 
+#[derive(Clone, Debug)]
+pub struct Polygon<K, W = ()> {
+    pub vertices: Vec<Point<K>>,
+    pub weight: W,
+}
+
 #[derive(Clone, Copy, Debug)]
-pub struct Point2<K> {
+pub struct Point<K> {
     pub x: K,
     pub y: K,
 }
 
-impl<K: Copy> From<[K; 2]> for Point2<K> {
+impl<K: Copy> From<[K; 2]> for Point<K> {
     #[inline]
     fn from(coords: [K; 2]) -> Self {
         Self {
@@ -48,9 +54,9 @@ impl<K: Copy> From<[K; 2]> for Point2<K> {
     }
 }
 
-impl<K: FromPrimitive + ToPrimitive> FloatPointCompatible<f64> for Point2<K>
+impl<K: FromPrimitive + ToPrimitive> FloatPointCompatible<f64> for Point<K>
 where
-    Point2<K>: Copy,
+    Point<K>: Copy,
 {
     #[inline]
     fn from_xy(x: f64, y: f64) -> Self {
@@ -74,7 +80,8 @@ where
 #[derive(Clone, Debug)]
 pub struct PolygonUnionFind<
     K: RTreeNum,
-    PC: KeyedCollection = Vec<Vec<Point2<K>>>,
+    W = (),
+    PC: KeyedCollection = Vec<Polygon<K, W>>,
     PR: KeyedCollection = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, usize>>,
     UFPC = Vec<usize>,
     UFRC = Vec<usize>,
@@ -83,15 +90,17 @@ pub struct PolygonUnionFind<
     rtree: PR,
     unionfind: UnionFind<UFPC, UFRC>,
     scalar_marker: PhantomData<K>,
+    polygon_weight_marker: PhantomData<W>,
 }
 
 impl<
     K: RTreeNum,
+    W,
     PC: Default + KeyedCollection,
     PR: Default + KeyedCollection,
     UFPC: Default,
     UFRC: Default,
-> PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+> PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
     #[inline]
     pub fn new() -> Self {
@@ -100,12 +109,13 @@ impl<
             rtree: Default::default(),
             unionfind: UnionFind::new(),
             scalar_marker: PhantomData,
+            polygon_weight_marker: PhantomData,
         }
     }
 }
 
-impl<K: RTreeNum, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
-    PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+impl<K: RTreeNum, W, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
+    PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
     #[inline]
     pub fn raw_polygons(&self) -> &PC {
@@ -132,42 +142,43 @@ impl<K: RTreeNum, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
 
 impl<
     K: FromPrimitive + RTreeNum + ToPrimitive,
-    PC: Clone + IntoIter<usize> + Get<usize, Value = Vec<Point2<K>>> + Push<usize> + Set<usize>,
+    W,
+    PC: Clone + IntoIter<usize> + Get<usize, Value = Polygon<K, W>> + Push<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-> PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+> PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 where
-    Point2<K>: Copy,
+    Point<K>: Copy,
 {
     #[inline]
-    pub fn polygons(&mut self) -> impl Iterator<Item = PC::Value> {
+    pub fn polygons(&mut self) -> impl Iterator<Item = &PC::Value> {
         let mut deduplicating_set = BTreeSet::new();
 
         for (i, _polygon) in self.polygons.clone().into_iter() {
             deduplicating_set.insert(self.unionfind.find(i));
         }
 
-        IntoIterator::into_iter(deduplicating_set).map(|i| self.polygons.get(&i).unwrap().clone())
+        IntoIterator::into_iter(deduplicating_set).map(|i| self.polygons.get(&i).unwrap())
     }
 }
 
 impl<
     K: FromPrimitive + RTreeNum + ToPrimitive,
-    PC: Get<usize, Value = Vec<Point2<K>>> + Push<usize> + Set<usize>,
+    W: Clone,
+    PC: Get<usize, Value = Polygon<K, W>> + Push<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-> PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+> PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 where
-    Point2<K>: Copy,
+    Point<K>: Copy,
 {
-    pub fn insert(&mut self, polygon: impl IntoIterator<Item = [K; 2]>) -> usize {
+    pub fn insert(&mut self, mut polygon: Polygon<K, W>) -> usize {
         let new_polygon_index = self.unionfind.new_set();
 
-        let mut polygon: Vec<Point2<K>> = polygon.into_iter().map(Into::into).collect();
         let rectangle = Self::rectangle_from_polygon(&polygon);
         self.rtree
             .insert(GeomWithData::new(rectangle.clone(), new_polygon_index), ());
@@ -181,11 +192,20 @@ where
         {
             let neighbor_representative = self.unionfind.find_compress(neighbor.data);
 
-            let union = polygon.overlay(
-                self.polygons.get(&neighbor_representative).unwrap(),
-                OverlayRule::Union,
-                FillRule::EvenOdd,
-            );
+            let vertices: Vec<[f64; 2]> = polygon
+                .vertices
+                .iter()
+                .map(|vertex| [vertex.x(), vertex.y()])
+                .collect();
+            let neighbor_vertices: Vec<[f64; 2]> = self
+                .polygons
+                .get(&neighbor_representative)
+                .unwrap()
+                .vertices
+                .iter()
+                .map(|vertex| [vertex.x(), vertex.y()])
+                .collect();
+            let union = vertices.overlay(&neighbor_vertices, OverlayRule::Union, FillRule::EvenOdd);
 
             if union.len() >= 2 {
                 continue;
@@ -197,18 +217,28 @@ where
 
                 //let representative = self.unionfind.find_compress(new_polygon_index);
                 let representative = self.unionfind.find(new_polygon_index);
-                self.polygons.set(representative, union[0].clone());
-                polygon = union[0].clone();
+                polygon = Polygon {
+                    vertices: union[0]
+                        .iter()
+                        .map(|vertex| Point {
+                            x: K::from_f64(vertex[0]).unwrap(),
+                            y: K::from_f64(vertex[1]).unwrap(),
+                        })
+                        .collect(),
+                    weight: self.polygons.get(&representative).unwrap().weight.clone(),
+                };
+                self.polygons.set(representative, polygon.clone());
             }
         }
 
         id
     }
 
-    fn rectangle_from_polygon(vertices: &[Point2<K>]) -> Rectangle<[K; 2]> {
+    fn rectangle_from_polygon(polygon: &Polygon<K, W>) -> Rectangle<[K; 2]> {
         Rectangle::from_aabb(
-            vertices
-                .into_iter()
+            polygon
+                .vertices
+                .iter()
                 .fold(AABB::new_empty(), |aabb, vertex| {
                     aabb.merged(&AABB::from_point([vertex.x, vertex.y]))
                 }),
@@ -216,8 +246,8 @@ where
     }
 }
 
-impl<K: RTreeNum, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
-    PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+impl<K: RTreeNum, W, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
+    PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
     pub fn clear(&mut self) {
         self.polygons.clear();
@@ -227,18 +257,20 @@ impl<K: RTreeNum, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
 }
 
 #[cfg(feature = "undoredo")]
-pub type RecordingPolygonUnionFind<K> = PolygonUnionFind<
+pub type RecordingPolygonUnionFind<K, W = ()> = PolygonUnionFind<
     K,
-    Recorder<Vec<Vec<Point2<K>>>, BTreeMap<usize, Vec<Point2<K>>>>,
+    W,
+    Recorder<Vec<Polygon<K, W>>, BTreeMap<usize, Polygon<K, W>>>,
     Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
     Recorder<Vec<usize>>,
     Recorder<Vec<usize>>,
 >;
 
 #[cfg(feature = "undoredo")]
-pub type PolygonUnionFindDelta<K> = PolygonUnionFind<
+pub type PolygonUnionFindDelta<K, W = ()> = PolygonUnionFind<
     K,
-    BTreeMap<usize, Vec<Point2<K>>>,
+    W,
+    BTreeMap<usize, Polygon<K, W>>,
     BTreeMap<GeomWithData<Rectangle<[K; 2]>, usize>, ()>,
     BTreeMap<usize, usize>,
     BTreeMap<usize, usize>,
@@ -247,6 +279,7 @@ pub type PolygonUnionFindDelta<K> = PolygonUnionFind<
 #[cfg(feature = "undoredo")]
 impl<
     K: RTreeNum,
+    W: Clone,
     PCE: Clone + KeyedCollection,
     PC: KeyedCollection + Clone + ApplyDelta<PCE>,
     PRE: Clone + KeyedCollection,
@@ -255,10 +288,10 @@ impl<
     UFPC: Clone + ApplyDelta<UFPCE>,
     UFRCE: Clone + KeyedCollection,
     UFRC: Clone + ApplyDelta<UFRCE>,
-> ApplyDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
-    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+> ApplyDelta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
-    fn apply_delta(&mut self, delta: &Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>) {
+    fn apply_delta(&mut self, delta: &Delta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>) {
         let (removed, inserted) = delta.clone().dissolve();
 
         let polygons_delta = Delta::with_removed_inserted(removed.polygons, inserted.polygons);
@@ -275,6 +308,7 @@ impl<
 #[cfg(feature = "undoredo")]
 impl<
     K: RTreeNum,
+    W: Clone,
     PCE: Clone + KeyedCollection,
     PC: KeyedCollection + FlushDelta<PCE>,
     PRE: Clone + KeyedCollection,
@@ -283,10 +317,10 @@ impl<
     UFPC: FlushDelta<UFPCE>,
     UFRCE: Clone + KeyedCollection,
     UFRC: FlushDelta<UFRCE>,
-> FlushDelta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>>
-    for PolygonUnionFind<K, PC, PR, UFPC, UFRC>
+> FlushDelta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>
+    for PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
-    fn flush_delta(&mut self) -> Delta<PolygonUnionFind<K, PCE, PRE, UFPCE, UFRCE>> {
+    fn flush_delta(&mut self) -> Delta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>> {
         let (removed_polygons, inserted_polygons) = self.polygons.flush_delta().dissolve();
         let (removed_rtree, inserted_rtree) = self.rtree.flush_delta().dissolve();
         let (removed_unionfind, inserted_unionfind) = self.unionfind.flush_delta().dissolve();
@@ -297,12 +331,14 @@ impl<
                 rtree: removed_rtree,
                 unionfind: removed_unionfind,
                 scalar_marker: PhantomData,
+                polygon_weight_marker: PhantomData,
             },
             PolygonUnionFind {
                 polygons: inserted_polygons,
                 rtree: inserted_rtree,
                 unionfind: inserted_unionfind,
                 scalar_marker: PhantomData,
+                polygon_weight_marker: PhantomData,
             },
         )
     }

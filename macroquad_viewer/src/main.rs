@@ -6,7 +6,7 @@ use ::rand::Rng;
 use ::rand::thread_rng;
 use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
-use polygon_unionfind::{PolygonUnionFindDelta, RecordingPolygonUnionFind};
+use polygon_unionfind::{Point, Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
 use std::f64::consts::PI;
 use undoredo::{FlushDelta, UndoRedo};
 
@@ -43,7 +43,7 @@ fn generate_random_radial_polygons(
     max_vertices: usize,
     min_coord: i64,
     max_coord: i64,
-) -> Vec<Vec<[i64; 2]>> {
+) -> Vec<Polygon<i64>> {
     let mut rng = thread_rng();
     let mut polygons = Vec::with_capacity(count);
 
@@ -70,10 +70,16 @@ fn generate_random_radial_polygons(
             let radius = rng.gen_range(0.1 * max_radius..max_radius);
             let x = center_x + radius * angle.cos();
             let y = center_y + radius * angle.sin();
-            vertices.push([x.round() as i64, y.round() as i64]);
+            vertices.push(Point {
+                x: x.round() as i64,
+                y: y.round() as i64,
+            });
         }
 
-        polygons.push(vertices);
+        polygons.push(Polygon {
+            vertices,
+            weight: (),
+        });
     }
 
     polygons
@@ -171,13 +177,14 @@ async fn main() {
 
         for polygon in &original_polygons {
             for window in polygon
+                .vertices
                 .iter()
-                .zip(polygon.iter().cycle().skip(1))
-                .take(polygon.len())
+                .zip(polygon.vertices.iter().cycle().skip(1))
+                .take(polygon.vertices.len())
             {
                 let (from, to) = window;
-                let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
-                let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;
+                let start = center + vec2(from.x as f32, -from.y as f32) * zoom;
+                let end = center + vec2(to.x as f32, -to.y as f32) * zoom;
                 draw_line(start.x, start.y, end.x, end.y, 1.0, GRAY);
             }
         }
@@ -201,9 +208,10 @@ async fn main() {
 
         for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
             for window in polygon
+                .vertices
                 .iter()
-                .zip(polygon.iter().cycle().skip(1))
-                .take(polygon.len())
+                .zip(polygon.vertices.iter().cycle().skip(1))
+                .take(polygon.vertices.len())
             {
                 let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
 
