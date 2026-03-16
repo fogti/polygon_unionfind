@@ -234,6 +234,17 @@ where
         id
     }
 
+    pub fn set_weight(&mut self, id: usize, weight: W) {
+        let polygon = self.polygons.get(&id).unwrap();
+        self.polygons.set(
+            id,
+            Polygon {
+                vertices: polygon.vertices.clone(),
+                weight,
+            },
+        );
+    }
+
     fn rectangle_from_polygon(polygon: &Polygon<K, W>) -> Rectangle<[K; 2]> {
         Rectangle::from_aabb(
             polygon
