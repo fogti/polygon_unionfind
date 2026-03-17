@@ -245,6 +245,17 @@ where
         );
     }
 
+    #[inline]
+    pub fn find(&self, index: usize) -> &Polygon<K, W> {
+        self.polygons.get(&self.unionfind.find(index)).unwrap()
+    }
+
+    pub fn find_compress(&mut self, index: usize) -> &Polygon<K, W> {
+        self.polygons
+            .get(&self.unionfind.find_compress(index))
+            .unwrap()
+    }
+
     fn rectangle_from_polygon(polygon: &Polygon<K, W>) -> Rectangle<[K; 2]> {
         Rectangle::from_aabb(
             polygon

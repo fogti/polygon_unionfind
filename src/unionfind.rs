@@ -78,7 +78,7 @@ impl<
         *self.parents.get(&x).unwrap()
     }
 
-    pub fn find(&mut self, x: usize) -> usize {
+    pub fn find(&self, x: usize) -> usize {
         if *self.parents.get(&x).unwrap() != x {
             return self.find(*self.parents.get(&x).unwrap());
         }
