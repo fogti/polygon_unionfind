@@ -153,6 +153,17 @@ where
     Point<K>: Copy,
 {
     #[inline]
+    pub fn polygon_indices(&mut self) -> impl Iterator<Item = usize> {
+        let mut deduplicating_set = BTreeSet::new();
+
+        for (i, _polygon) in self.polygons.clone().into_iter() {
+            deduplicating_set.insert(self.unionfind.find(i));
+        }
+
+        IntoIterator::into_iter(deduplicating_set)
+    }
+
+    #[inline]
     pub fn polygons(&mut self) -> impl Iterator<Item = &PC::Value> {
         let mut deduplicating_set = BTreeSet::new();
 
