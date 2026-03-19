@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
-use crate::unionfind::UnionFind;
+pub use crate::unionfind::UnionFind;
 
 #[cfg(feature = "std")]
 extern crate std;
