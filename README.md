@@ -3,12 +3,24 @@
 `polygon_unionfind` is a disjoint-set data structure (union-find) where sets
 are polygons.
 
-The polygons are stored in an R-tree. 
+Upon insertion, each polygon is merged with all the intersecting polygons
+that are already present. To reduce the cost of finding intersecting polygons,
+polygons are spatially filtered by being kept in an R-tree.
 
-It stores polygons, tracks connected components with union-find, and uses
-`i_overlay` to merge intersecting polygons into a single representative shape.
+## Usage
 
-## Basic usage
+### Adding dependency
+
+First, add `polygon_unionfind` as a dependency to your `Cargo.toml`:
+
+```toml
+[dependencies]
+polygon_unionfind = "0.5"
+```
+
+### Basic usage
+
+Following is a basic usage example of `polygon_unionfind`.
 
 ```rust
 use polygon_unionfind::{Point, Polygon, PolygonUnionFind};
@@ -40,15 +52,40 @@ let repr_second = polygon_unionfind.find(second).vertices.len();
 assert_eq!(rep_first, rep_second);
 ```
 
+## Documentation
+
+See the [documentation](https://docs.rs/dcel/latest/dcel) for more information
+about `dcel`'s usage.
+
 ## Features
 
 - `std` (default): enables `std` support.
-- `undoredo` (optional): enables integration aliases intended for `undoredo`
-  recorders/deltas.
+- `undoredo` (optional): enables integration with the
+  [`undoredo`](https://crates.io/crates/undoredo) crate.
 
-## License
+## Packaging
 
-Licensed under either:
+`dcel` is published as a [crate](https://crates.io/crates/dcel) on the
+[Crates.io](https://crates.io/) registry.
 
-- MIT License
-- Apache License, Version 2.0
+## Contributing
+
+We welcome issues and pull requests from anyone to our canonical
+[repository](https://codeberg.org/topola/dcel) on Codeberg.
+
+## Licence
+
+### Outbound licence
+
+`dcel` is dual-licensed as under either of
+
+- [MIT license](./LICENSES/MIT.txt),
+- [Apache License, Version 2.0](./LICENSES/Apache-2.0.txt),
+
+at your option.
+
+### Inbound licence
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you will be dual-licensed as described above,
+without any additional terms or conditions.
