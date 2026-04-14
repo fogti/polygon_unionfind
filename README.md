@@ -70,8 +70,8 @@ about `dcel`'s usage.
 
 ## Contributing
 
-We welcome issues and pull requests from anyone to our canonical
-[repository](https://codeberg.org/topola/dcel) on Codeberg.
+We welcome issues and pull requests from anyone to our
+[repository](https://github.com/mikwielgus/polygon_unionfind) on GitHub.
 
 ## Licence
 
