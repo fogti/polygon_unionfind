@@ -5,7 +5,13 @@ are polygons.
 
 Upon insertion, each polygon is merged with all the intersecting polygons
 that are already present. To reduce the cost of finding intersecting polygons,
-polygons are spatially filtered by being kept in an R-tree.
+polygons are spatially filtered with an R-tree.
+
+This library has optional integration with
+[`undoredo`](https://crates.io/crates/undoredo), a crate which provides
+[Undo/Redo](https://en.wikipedia.org/wiki/Undo) functionality for any data
+structure, allowing to programmatically revert and restore any change using
+deltas or snapshots.
 
 ## Usage
 
@@ -60,7 +66,7 @@ about `dcel`'s usage.
 ## Features
 
 - `std` (default): enables `std` support.
-- `undoredo` (optional): enables integration with the
+- `undoredo` (optional): provides recording of deltas for Undo/Redo with the
   [`undoredo`](https://crates.io/crates/undoredo) crate.
 
 ## Packaging
