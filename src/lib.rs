@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 // SPDX-FileCopyrightText: 2026 polygon_unionfind contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -34,10 +36,13 @@ mod unionfind;
 
 #[derive(Clone, Debug)]
 pub struct Polygon<K, W = ()> {
+    /// Polygon exterior ring vertices.
     pub vertices: Vec<Point<K>>,
+    /// User-defined payload for this polygon.
     pub weight: W,
 }
 
+/// A two-dimenstional point.
 #[derive(Clone, Copy, Debug)]
 pub struct Point<K> {
     pub x: K,
@@ -102,6 +107,7 @@ impl<
     UFRC: Default,
 > PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
+    /// Create an empty `PolygonUnionFind`.
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -117,16 +123,19 @@ impl<
 impl<K: RTreeNum, W, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
     PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
+    /// Borrow the raw polygon collection backend.
     #[inline]
     pub fn raw_polygons(&self) -> &PC {
         &self.polygons
     }
 
+    /// Borrow the spatial index backend.
     #[inline]
     pub fn rtree(&self) -> &PR {
         &self.rtree
     }
 
+    /// Borrow the union-find backend.
     #[inline]
     pub fn unionfind(&self) -> &UnionFind<UFPC, UFRC> {
         &self.unionfind
@@ -152,6 +161,7 @@ impl<
 where
     Point<K>: Copy,
 {
+    /// Return unique representative indices for currently merged polygons.
     #[inline]
     pub fn polygon_indices(&mut self) -> impl Iterator<Item = usize> {
         let mut deduplicating_set = BTreeSet::new();
@@ -163,6 +173,10 @@ where
         IntoIterator::into_iter(deduplicating_set)
     }
 
+    /// Iterate representative polygons after all merges.
+    ///
+    /// If several inserted polygons have been merged into one component,
+    /// only the representative polygon for that component is yielded.
     #[inline]
     pub fn polygons(&mut self) -> impl Iterator<Item = &PC::Value> {
         let mut deduplicating_set = BTreeSet::new();
@@ -187,6 +201,9 @@ impl<
 where
     Point<K>: Copy,
 {
+    /// Insert a polygon and merge it with any neighboring polygon.
+    ///
+    /// Returns the polygon's new id even if it was absorbed by another polygon.
     pub fn insert(&mut self, mut polygon: Polygon<K, W>) -> usize {
         let new_polygon_index = self.unionfind.new_set();
 
@@ -245,6 +262,9 @@ where
         id
     }
 
+    /// Replace the weight associated the polygon under `id`.
+    ///
+    /// This does not change the polygon's shape anyhow.
     pub fn set_weight(&mut self, id: usize, weight: W) {
         let polygon = self.polygons.get(&id).unwrap();
         self.polygons.set(
@@ -256,11 +276,13 @@ where
         );
     }
 
+    /// Find the representative polygon for `index` without path compression.
     #[inline]
     pub fn find(&self, index: usize) -> &Polygon<K, W> {
         self.polygons.get(&self.unionfind.find(index)).unwrap()
     }
 
+    /// Find the representative polygon for `index`, applying path compression.
     pub fn find_compress(&mut self, index: usize) -> &Polygon<K, W> {
         self.polygons
             .get(&self.unionfind.find_compress(index))
@@ -282,6 +304,7 @@ where
 impl<K: RTreeNum, W, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
     PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
+    /// Remove all polygons and reset indexing/union state.
     pub fn clear(&mut self) {
         self.polygons.clear();
         self.rtree.clear();
@@ -290,6 +313,7 @@ impl<K: RTreeNum, W, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
 }
 
 #[cfg(feature = "undoredo")]
+/// `PolygonUnionFind` with Undo/Redo.
 pub type RecordingPolygonUnionFind<K, W = ()> = PolygonUnionFind<
     K,
     W,
@@ -300,6 +324,7 @@ pub type RecordingPolygonUnionFind<K, W = ()> = PolygonUnionFind<
 >;
 
 #[cfg(feature = "undoredo")]
+/// Delta-serializable `PolygonUnionFind` representation for undo/redo snapshots.
 pub type PolygonUnionFindDelta<K, W = ()> = PolygonUnionFind<
     K,
     W,
@@ -375,11 +400,4 @@ impl<
             },
         )
     }
-}
-
-#[cfg(test)]
-mod tests {
-    //use super::*;
-
-    // TODO: tests.
 }

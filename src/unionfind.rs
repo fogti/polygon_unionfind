@@ -8,7 +8,7 @@ use maplike::{Clear, Get, Push, Set};
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta};
 
-/// Disjoint-set union data structure, also known as Union-Find.
+/// Disjoint-set union data structure, widely also known as *union-find*.
 #[derive(Clone, Debug)]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
@@ -22,7 +22,7 @@ impl<
     RC: Get<usize, Value = usize> + FromIterator<usize> + Push<usize> + Set<usize>,
 > UnionFind<PC, RC>
 {
-    /// Create a new `UnionFind` with `size` elements (0..size).
+    /// Create a new `UnionFind` with `len` singleton sets (`0..len`).
     #[inline]
     pub fn with_len(len: usize) -> Self {
         Self::from_parents_ranks(
@@ -33,6 +33,7 @@ impl<
 }
 
 impl<PC: Default, RC: Default> UnionFind<PC, RC> {
+    /// Create an empty `UnionFind`.
     #[inline]
     pub fn new() -> Self {
         Self::from_parents_ranks(Default::default(), Default::default())
@@ -46,8 +47,7 @@ impl<PC, RC> UnionFind<PC, RC> {
         Self { parents, ranks }
     }
 
-    /// Dissolve the polygon-union-find, returning its parent and rank
-    /// collections, ceding ownership over them.
+    /// Dissolve this structure and return the parent and rank collections.
     #[inline]
     pub fn dissolve(self) -> (PC, RC) {
         (self.parents, self.ranks)
@@ -59,6 +59,7 @@ impl<
     RC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > UnionFind<PC, RC>
 {
+    /// Add one singleton set and return its node.
     pub fn new_set(&mut self) -> usize {
         let new_set_index = self.ranks.push(0);
         self.parents.push(new_set_index);
@@ -66,27 +67,32 @@ impl<
         new_set_index
     }
 
-    /// Find the representative of `x`, performing path compression along the
-    /// way.
-    pub fn find_compress(&mut self, x: usize) -> usize {
-        if *self.parents.get(&x).unwrap() != x {
+    /// Find the representative of element under the given node, performing path
+    /// compression along the way.
+    pub fn find_compress(&mut self, node: usize) -> usize {
+        if *self.parents.get(&node).unwrap() != node {
             // Perform the path compression.
-            let parent = self.find_compress(*self.parents.get(&x).unwrap());
-            self.parents.set(x, parent);
+            let parent = self.find_compress(*self.parents.get(&node).unwrap());
+            self.parents.set(node, parent);
         }
 
-        *self.parents.get(&x).unwrap()
+        *self.parents.get(&node).unwrap()
     }
 
-    pub fn find(&self, x: usize) -> usize {
-        if *self.parents.get(&x).unwrap() != x {
-            return self.find(*self.parents.get(&x).unwrap());
+    /// Find the representative of the given node without path compression.
+    ///
+    /// [https://cp-algorithms.com/data_structures/disjoint_set_union.html#path-compression-optimization](Path compression)
+    /// is an optimization that speeds up finding an element by flattening the
+    /// tree formed by all the connected elements.
+    pub fn find(&self, node: usize) -> usize {
+        if *self.parents.get(&node).unwrap() != node {
+            return self.find(*self.parents.get(&node).unwrap());
         }
 
-        *self.parents.get(&x).unwrap()
+        *self.parents.get(&node).unwrap()
     }
 
-    /// Unionize the sets containing `x` and `y`, minimizing the rank.
+    /// Unionize the sets containing nodes `x` and `y`, minimizing the rank.
     ///
     /// Returns true if merged, false if already in the same set.
     pub fn union(&mut self, x: usize, y: usize) -> bool {
@@ -121,6 +127,7 @@ impl<
 }
 
 impl<PC: Clear, RC: Clear> UnionFind<PC, RC> {
+    /// Remove all sets.
     pub fn clear(&mut self) {
         self.parents.clear();
         self.ranks.clear();
