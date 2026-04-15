@@ -4,3 +4,6 @@
 
 pre-release-commit-message = "Release {{version}}"
 tag-name = "{{version}}"
+pre-release-replacements = [
+  { file = "README.md", search = 'polygon_unionfind = \{ version = "[^"]+"([^}]*)\}', replace = '{{crate_name}} = { version = "{{version}}"$1}' },
+]

@@ -17,7 +17,7 @@ deltas or snapshots.
 
 For an interactive visualization of `polygon_unionfind`'s merging and undo-redo
 action, you can run our graphical demo implemented using the cross-platform
-[`undoredo`](https://crates.io/crates/macroquad) crate by running the following
+[`macroquad`](https://crates.io/crates/macroquad) crate by running the following
 command:
 
 ```sh
@@ -32,8 +32,11 @@ First, add `polygon_unionfind` as a dependency to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-polygon_unionfind = "0.5"
+polygon_unionfind = { version = "0.5", features = ["undoredo"] }
 ```
+
+If you don't need to perform undo and redo operations, you can remove the
+`undoredo` feature.
 
 ### Basic usage
 
