@@ -12,7 +12,7 @@ use i_overlay::{
     i_float::float::compatible::FloatPointCompatible,
 };
 
-use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Set};
+use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Remove, Set};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
@@ -36,7 +36,7 @@ mod unionfind;
 
 #[derive(Clone, Debug)]
 pub struct Polygon<K, W = ()> {
-    /// Polygon exterior ring vertices.
+    /// Vertices of the polygon's exterior ring.
     pub vertices: Vec<Point<K>>,
     /// User-defined payload for this polygon.
     pub weight: W,
@@ -194,7 +194,8 @@ impl<
     W: Clone,
     PC: Get<usize, Value = Polygon<K, W>> + Push<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
-        + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>,
+        + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, usize>>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
@@ -203,7 +204,8 @@ where
 {
     /// Insert a polygon and merge it with any neighboring polygon.
     ///
-    /// Returns the polygon's new id even if it was absorbed by another polygon.
+    /// Returns the polygon's new id even if it was immediately absorbed by
+    /// another polygon.
     pub fn insert(&mut self, mut polygon: Polygon<K, W>) -> usize {
         let new_polygon_index = self.unionfind.new_set();
 
@@ -213,12 +215,15 @@ where
 
         let id = self.polygons.push(polygon.clone());
 
-        for neighbor in self
+        let neighbor_ids: Vec<usize> = self
             .rtree
             .as_ref()
             .locate_in_envelope_intersecting(&rectangle.envelope())
-        {
-            let neighbor_representative = self.unionfind.find_compress(neighbor.data);
+            .map(|neighbor| neighbor.data)
+            .collect();
+
+        for neighbor_id in neighbor_ids {
+            let neighbor_representative = self.unionfind.find_compress(neighbor_id);
 
             let vertices: Vec<[f64; 2]> = polygon
                 .vertices
@@ -240,11 +245,18 @@ where
             }
 
             if let Some(union) = union.get(&0) {
-                self.unionfind
-                    .union(neighbor_representative, new_polygon_index);
+                let root_of_neighbor = neighbor_representative;
 
-                //let representative = self.unionfind.find_compress(new_polygon_index);
-                let representative = self.unionfind.find(new_polygon_index);
+                // `new_polygon_index` may already point to another root after
+                // merges, so we need to find it again.
+                let root_of_inserted = self.unionfind.find_compress(new_polygon_index);
+
+                if root_of_neighbor == root_of_inserted {
+                    continue;
+                }
+                self.unionfind.union(root_of_neighbor, root_of_inserted);
+
+                let representative = self.unionfind.find_compress(new_polygon_index);
                 polygon = Polygon {
                     vertices: union[0]
                         .iter()
@@ -256,19 +268,45 @@ where
                     weight: self.polygons.get(&representative).unwrap().weight.clone(),
                 };
                 self.polygons.set(representative, polygon.clone());
+
+                let absorbed = if representative == root_of_neighbor {
+                    root_of_inserted
+                } else {
+                    root_of_neighbor
+                };
+                self.remove_polygon_from_rtree(absorbed);
+                self.reinsert_polygon_in_rtree(representative, &polygon);
             }
         }
 
         id
     }
 
-    /// Replace the weight associated the polygon under `id`.
+    fn remove_polygon_from_rtree(&mut self, polygon_id: usize) {
+        let item = self
+            .rtree
+            .as_ref()
+            .iter()
+            .find(|g| g.data == polygon_id)
+            .cloned();
+        if let Some(item) = item {
+            self.rtree.remove(&item);
+        }
+    }
+
+    fn reinsert_polygon_in_rtree(&mut self, polygon_id: usize, polygon: &Polygon<K, W>) {
+        self.remove_polygon_from_rtree(polygon_id);
+        let rect = Self::rectangle_from_polygon(polygon);
+        self.rtree.insert(GeomWithData::new(rect, polygon_id), ());
+    }
+
+    /// Set the weight (payload) associated with the polygon under `index`.
     ///
     /// This does not change the polygon's shape anyhow.
-    pub fn set_weight(&mut self, id: usize, weight: W) {
-        let polygon = self.polygons.get(&id).unwrap();
+    pub fn set_weight(&mut self, index: usize, weight: W) {
+        let polygon = self.polygons.get(&index).unwrap();
         self.polygons.set(
-            id,
+            index,
             Polygon {
                 vertices: polygon.vertices.clone(),
                 weight,
