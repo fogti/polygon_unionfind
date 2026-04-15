@@ -6,13 +6,7 @@
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
-use i_overlay::{
-    core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-    float::single::SingleFloatOverlay,
-};
-
 use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Remove, Set};
-use num_traits::{FromPrimitive, ToPrimitive};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -23,6 +17,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
+use crate::union::Union;
 pub use crate::unionfind::UnionFind;
 
 #[cfg(feature = "std")]
@@ -31,6 +26,7 @@ extern crate std;
 // No feature for `alloc` because it would be always enabled anyway.
 extern crate alloc;
 
+mod union;
 mod unionfind;
 
 #[derive(Clone, Debug)]
@@ -111,7 +107,7 @@ impl<K: RTreeNum, W, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
 }
 
 impl<
-    K: FromPrimitive + RTreeNum + ToPrimitive,
+    K: RTreeNum,
     W,
     PC: Clone + IntoIter<usize> + Get<usize, Value = Polygon<K, W>> + Push<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
@@ -151,7 +147,7 @@ where
 }
 
 impl<
-    K: FromPrimitive + RTreeNum + ToPrimitive,
+    K: RTreeNum,
     W: Clone,
     PC: Get<usize, Value = Polygon<K, W>> + Push<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
@@ -162,6 +158,7 @@ impl<
 > PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 where
     K: Copy,
+    Polygon<K, W>: Union<Polygon<K, W>>,
 {
     /// Insert a polygon and merge it with any neighboring polygon.
     ///
@@ -185,50 +182,43 @@ where
 
         for neighbor_id in neighbor_ids {
             let neighbor_representative = self.unionfind.find_compress(neighbor_id);
+            let root_of_inserted = self.unionfind.find_compress(new_polygon_index);
 
-            let subj_shape = Self::polygon_to_i_overlay_shape_f64(&polygon);
-            let neighbor = self.polygons.get(&neighbor_representative).unwrap();
-            let clip_shape = Self::polygon_to_i_overlay_shape_f64(neighbor);
-            let union = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
-
-            if union.len() >= 2 {
+            if neighbor_representative == root_of_inserted {
                 continue;
             }
 
-            if let Some(merged_shape) = union.first() {
-                if merged_shape.is_empty() {
-                    continue;
-                }
+            let neighbor = self.polygons.get(&neighbor_representative).unwrap().clone();
+            let Some(merged) =
+                <Polygon<K, W> as Union<Polygon<K, W>>>::union(polygon.clone(), neighbor)
+            else {
+                continue;
+            };
 
-                let root_of_neighbor = neighbor_representative;
+            let root_of_neighbor = neighbor_representative;
+            self.unionfind.union(root_of_neighbor, root_of_inserted);
 
-                // `new_polygon_index` may already point to another root after
-                // merges, so we need to find it again.
-                let root_of_inserted = self.unionfind.find_compress(new_polygon_index);
+            let representative = self.unionfind.find_compress(new_polygon_index);
+            let merged_weight = self.polygons.get(&representative).unwrap().weight.clone();
+            polygon = Polygon {
+                exterior: merged.exterior,
+                interiors: merged.interiors,
+                weight: merged_weight,
+            };
+            self.polygons.set(representative, polygon.clone());
 
-                if root_of_neighbor == root_of_inserted {
-                    continue;
-                }
-                self.unionfind.union(root_of_neighbor, root_of_inserted);
+            let absorbed = if representative == root_of_neighbor {
+                root_of_inserted
+            } else {
+                root_of_neighbor
+            };
 
-                let representative = self.unionfind.find_compress(new_polygon_index);
-                let merged_weight = self.polygons.get(&representative).unwrap().weight.clone();
-                polygon = Self::i_overlay_shape_f64_to_polygon(merged_shape, merged_weight);
-                self.polygons.set(representative, polygon.clone());
+            // Remove the absorbed polygon from R-tree to shorten query
+            // times.
+            self.remove_polygon_from_rtree(absorbed);
 
-                let absorbed = if representative == root_of_neighbor {
-                    root_of_inserted
-                } else {
-                    root_of_neighbor
-                };
-
-                // Remove the absorbed polygon from R-tree to shorten query
-                // times.
-                self.remove_polygon_from_rtree(absorbed);
-
-                // The bbox changed, so we need to reinsert the polygon in R-tree.
-                self.reinsert_polygon_in_rtree(representative, &polygon);
-            }
+            // The bbox changed, so we need to reinsert the polygon in R-tree.
+            self.reinsert_polygon_in_rtree(representative, &polygon);
         }
 
         id
@@ -297,58 +287,6 @@ where
                     aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
                 }),
         )
-    }
-
-    pub(crate) fn polygon_to_i_overlay_shape_f64(polygon: &Polygon<K, W>) -> Vec<Vec<[f64; 2]>> {
-        let mut shape = Vec::with_capacity(1 + polygon.interiors.len());
-        shape.push(
-            polygon
-                .exterior
-                .iter()
-                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
-                .collect(),
-        );
-        for ring in &polygon.interiors {
-            shape.push(
-                ring.iter()
-                    .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
-                    .collect(),
-            );
-        }
-        shape
-    }
-
-    pub(crate) fn i_overlay_shape_f64_to_polygon(
-        shape: &[Vec<[f64; 2]>],
-        weight: W,
-    ) -> Polygon<K, W> {
-        let outer: Vec<[K; 2]> = shape[0]
-            .iter()
-            .map(|vertex| {
-                [
-                    K::from_f64(vertex[0]).unwrap(),
-                    K::from_f64(vertex[1]).unwrap(),
-                ]
-            })
-            .collect();
-        let inner_rings: Vec<Vec<[K; 2]>> = shape[1..]
-            .iter()
-            .map(|ring| {
-                ring.iter()
-                    .map(|vertex| {
-                        [
-                            K::from_f64(vertex[0]).unwrap(),
-                            K::from_f64(vertex[1]).unwrap(),
-                        ]
-                    })
-                    .collect()
-            })
-            .collect();
-        Polygon {
-            exterior: outer,
-            interiors: inner_rings,
-            weight,
-        }
     }
 }
 
@@ -455,7 +393,6 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
     use i_overlay::float::single::SingleFloatOverlay;
 
@@ -477,26 +414,5 @@ mod tests {
         let merged = shape.overlay(&shape, OverlayRule::Union, FillRule::EvenOdd);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].len(), 2, "outer ring and one hole");
-    }
-
-    #[test]
-    fn polygon_i_overlay_roundtrip() {
-        let polygon: Polygon<i64, ()> = Polygon {
-            exterior: vec![[0, 0], [10, 0], [10, 10], [0, 10]],
-            interiors: vec![vec![[2, 2], [8, 2], [8, 8], [2, 8]]],
-            weight: (),
-        };
-        type Puf = PolygonUnionFind<
-            i64,
-            (),
-            Vec<Polygon<i64, ()>>,
-            AsRefRTree<GeomWithData<Rectangle<[i64; 2]>, usize>>,
-            Vec<usize>,
-            Vec<usize>,
-        >;
-        let shape = Puf::polygon_to_i_overlay_shape_f64(&polygon);
-        let back = Puf::i_overlay_shape_f64_to_polygon(&shape, ());
-        assert_eq!(back.exterior, polygon.exterior);
-        assert_eq!(back.interiors, polygon.interiors);
     }
 }
