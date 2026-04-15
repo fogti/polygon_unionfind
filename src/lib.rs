@@ -9,7 +9,6 @@ use std::{collections::BTreeSet, marker::PhantomData};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
-    i_float::float::compatible::FloatPointCompatible,
 };
 
 use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Remove, Set};
@@ -36,50 +35,10 @@ mod unionfind;
 
 #[derive(Clone, Debug)]
 pub struct Polygon<K, W = ()> {
-    /// Vertices of the polygon's exterior ring.
-    pub vertices: Vec<Point<K>>,
+    /// Vertices of the polygon's exterior ring (`[x, y]`).
+    pub vertices: Vec<[K; 2]>,
     /// User-defined payload for this polygon.
     pub weight: W,
-}
-
-/// A two-dimenstional point.
-#[derive(Clone, Copy, Debug)]
-pub struct Point<K> {
-    pub x: K,
-    pub y: K,
-}
-
-impl<K: Copy> From<[K; 2]> for Point<K> {
-    #[inline]
-    fn from(coords: [K; 2]) -> Self {
-        Self {
-            x: coords[0],
-            y: coords[1],
-        }
-    }
-}
-
-impl<K: FromPrimitive + ToPrimitive> FloatPointCompatible<f64> for Point<K>
-where
-    Point<K>: Copy,
-{
-    #[inline]
-    fn from_xy(x: f64, y: f64) -> Self {
-        Self {
-            x: K::from_f64(x).unwrap(),
-            y: K::from_f64(y).unwrap(),
-        }
-    }
-
-    #[inline]
-    fn x(&self) -> f64 {
-        self.x.to_f64().unwrap()
-    }
-
-    #[inline]
-    fn y(&self) -> f64 {
-        self.y.to_f64().unwrap()
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -159,7 +118,7 @@ impl<
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 where
-    Point<K>: Copy,
+    K: Copy,
 {
     /// Return unique representative indices for currently merged polygons.
     #[inline]
@@ -200,7 +159,7 @@ impl<
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 where
-    Point<K>: Copy,
+    K: Copy,
 {
     /// Insert a polygon and merge it with any neighboring polygon.
     ///
@@ -228,7 +187,7 @@ where
             let vertices: Vec<[f64; 2]> = polygon
                 .vertices
                 .iter()
-                .map(|vertex| [vertex.x(), vertex.y()])
+                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
                 .collect();
             let neighbor_vertices: Vec<[f64; 2]> = self
                 .polygons
@@ -236,7 +195,7 @@ where
                 .unwrap()
                 .vertices
                 .iter()
-                .map(|vertex| [vertex.x(), vertex.y()])
+                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
                 .collect();
             let union = vertices.overlay(&neighbor_vertices, OverlayRule::Union, FillRule::EvenOdd);
 
@@ -260,9 +219,11 @@ where
                 polygon = Polygon {
                     vertices: union[0]
                         .iter()
-                        .map(|vertex| Point {
-                            x: K::from_f64(vertex[0]).unwrap(),
-                            y: K::from_f64(vertex[1]).unwrap(),
+                        .map(|vertex| {
+                            [
+                                K::from_f64(vertex[0]).unwrap(),
+                                K::from_f64(vertex[1]).unwrap(),
+                            ]
                         })
                         .collect(),
                     weight: self.polygons.get(&representative).unwrap().weight.clone(),
@@ -341,7 +302,7 @@ where
                 .vertices
                 .iter()
                 .fold(AABB::new_empty(), |aabb, vertex| {
-                    aabb.merged(&AABB::from_point([vertex.x, vertex.y]))
+                    aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
                 }),
         )
     }

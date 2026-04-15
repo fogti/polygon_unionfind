@@ -7,7 +7,7 @@
 
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use polygon_unionfind::{Point, Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
+use polygon_unionfind::{Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
 use undoredo::{FlushDelta, UndoRedo};
 
 /// Monotone-chain convex hull; returns vertices in counter-clockwise order.
@@ -71,10 +71,7 @@ fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> Polygon<i64, ()> {
     Polygon {
         vertices: ring
             .into_iter()
-            .map(|[x, y]| Point {
-                x: i64::from(x),
-                y: i64::from(y),
-            })
+            .map(|[x, y]| [i64::from(x), i64::from(y)])
             .collect(),
         weight: (),
     }
@@ -232,8 +229,8 @@ async fn main() {
                 let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
 
                 let (from, to) = window;
-                let start = center + vec2(from.x as f32, -from.y as f32) * zoom;
-                let end = center + vec2(to.x as f32, -to.y as f32) * zoom;
+                let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
+                let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;
                 draw_line(
                     start.x,
                     start.y,

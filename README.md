@@ -1,11 +1,12 @@
 # polygon_unionfind
 
-`polygon_unionfind` is a disjoint-set data structure (union-find) where sets
-are polygons.
+`polygon_unionfind` is a Rust library that implements disjoint-polygon data
+structure (polygon union-find): a disjoint-set data structure where sets are
+polygons.
 
-Upon insertion, each polygon is merged with all the intersecting polygons
-that are already present. To reduce the cost of finding intersecting polygons,
-polygons are spatially filtered with an R-tree.
+Upon insertion, each polygon is merged with all the intersecting polygons that
+are already present. To reduce the cost of finding intersecting polygons, they
+are spatially filtered with an R-tree.
 
 This library has optional integration with
 [`undoredo`](https://crates.io/crates/undoredo), a crate which provides
@@ -43,24 +44,30 @@ If you don't need to perform undo and redo operations, you can remove the
 Following is a basic usage example of `polygon_unionfind`.
 
 ```rust
-use polygon_unionfind::{Point, Polygon, PolygonUnionFind};
+use polygon_unionfind::{Polygon, PolygonUnionFind};
 
 let mut polygon_unionfind = PolygonUnionFind::<i64, &str>::new();
 
 let polygon1 = polygon_unionfind.insert(Polygon {
     vertices: vec![
-        Point { x: 0, y: 0 },
-        Point { x: 3, y: 0 },
-        Point { x: 0, y: 3 },
+        [0, 0],
+        [3, 0],
+        [4, 2],
+        [3, 4],
+        [0, 4],
+        [-1, 2],
     ],
     weight: "first",
 });
 
 let polygon2 = polygon_unionfind.insert(Polygon {
     vertices: vec![
-        Point { x: 1, y: 0 },
-        Point { x: 4, y: 0 },
-        Point { x: 1, y: 3 },
+        [2, 0],
+        [5, 0],
+        [6, 2],
+        [5, 4],
+        [2, 4],
+        [1, 2],
     ],
     weight: "second",
 });
