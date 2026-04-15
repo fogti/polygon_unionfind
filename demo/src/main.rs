@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// Programming of this file was assisted by OpenAI Codex 5.1/5.2/5.3 and Cursor
+// Composer 2.0 Fast.
+
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{Point, Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
@@ -85,6 +88,7 @@ async fn main() {
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
     let mut last_mouse_pos: Option<Vec2> = None;
+    let mut show_insert_hint = true;
 
     loop {
         let undo_button = Rect::new(20.0, 20.0, 100.0, 36.0);
@@ -92,15 +96,32 @@ async fn main() {
         let (mx, my) = mouse_position();
         let mouse = vec2(mx, my);
         let left_pressed = is_mouse_button_pressed(MouseButton::Left);
+        if show_insert_hint && left_pressed {
+            show_insert_hint = false;
+        }
         let undo_clicked = left_pressed && undo_button.contains(mouse);
         let redo_clicked = left_pressed && redo_button.contains(mouse);
 
+        let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
+
         if undo_clicked {
             undoredo.undo(&mut polygon_unionfind);
-        }
-
-        if redo_clicked {
+        } else if redo_clicked {
             undoredo.redo(&mut polygon_unionfind);
+        } else if left_pressed {
+            if !undo_button.contains(mouse) && !redo_button.contains(mouse) {
+                let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
+                let radius = (60.0 / zoom).max(10.0).round() as i32;
+                let count = gen_range(3, 10) as usize;
+                let ring = random_convex_polygon_at_point(
+                    [click_world.x.round() as i32, click_world.y.round() as i32],
+                    radius,
+                    count,
+                );
+
+                polygon_unionfind.insert(polygon_from_ring_i32(ring));
+                undoredo.commit(polygon_unionfind.flush_delta());
+            }
         }
 
         let (_, scroll_y) = mouse_wheel();
@@ -120,35 +141,34 @@ async fn main() {
             last_mouse_pos = None;
         }
 
-        let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
-
-        if is_mouse_button_pressed(MouseButton::Left) {
-            if !undo_button.contains(mouse) && !redo_button.contains(mouse) {
-                let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
-                let radius = (60.0 / zoom).max(10.0).round() as i32;
-                let count = gen_range(3, 10) as usize;
-                let ring = random_convex_polygon_at_point(
-                    [click_world.x.round() as i32, click_world.y.round() as i32],
-                    radius,
-                    count,
-                );
-
-                polygon_unionfind.insert(polygon_from_ring_i32(ring));
-                undoredo.commit(polygon_unionfind.flush_delta());
-            }
-
-            next_frame().await;
-            continue;
-        }
-
         clear_background(BLACK);
+
+        let undo_hover = undo_button.contains(mouse);
+        let redo_hover = redo_button.contains(mouse);
+        let undo_pressed = undo_hover && is_mouse_button_down(MouseButton::Left);
+        let redo_pressed = redo_hover && is_mouse_button_down(MouseButton::Left);
+
+        let undo_fill = if undo_pressed {
+            LIGHTGRAY
+        } else if undo_hover {
+            GRAY
+        } else {
+            DARKGRAY
+        };
+        let redo_fill = if redo_pressed {
+            LIGHTGRAY
+        } else if redo_hover {
+            GRAY
+        } else {
+            DARKGRAY
+        };
 
         draw_rectangle(
             undo_button.x,
             undo_button.y,
             undo_button.w,
             undo_button.h,
-            DARKGRAY,
+            undo_fill,
         );
         draw_text(
             "undo",
@@ -162,7 +182,7 @@ async fn main() {
             redo_button.y,
             redo_button.w,
             redo_button.h,
-            DARKGRAY,
+            redo_fill,
         );
         draw_text(
             "redo",
@@ -171,6 +191,19 @@ async fn main() {
             28.0,
             WHITE,
         );
+
+        if show_insert_hint {
+            let hint = "Click to insert a new polygon.";
+            let hint_size = 22.0;
+            let hint_dims = measure_text(hint, None, hint_size as u16, 1.0);
+            draw_text(
+                hint,
+                (screen_width() - hint_dims.width) * 0.5,
+                screen_height() - 32.0,
+                hint_size,
+                GRAY,
+            );
+        }
 
         for geom_with_data in polygon_unionfind.rtree().collection().iter() {
             let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
