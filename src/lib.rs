@@ -277,12 +277,20 @@ where
     }
 
     /// Find the representative polygon for `index` without path compression.
+    ///
+    /// If you want to path compression to be performed, use [`find_compress()`]
+    /// instead.
     #[inline]
     pub fn find(&self, index: usize) -> &Polygon<K, W> {
         self.polygons.get(&self.unionfind.find(index)).unwrap()
     }
 
-    /// Find the representative polygon for `index`, applying path compression.
+    /// Find the representative polygon for `index`, applying path compression
+    /// along the way.
+    ///
+    /// [https://cp-algorithms.com/data_structures/disjoint_set_union.html#path-compression-optimization](Path compression)
+    /// is an optimization that speeds up finding an element by flattening the
+    /// tree formed by all the connected nodes.
     pub fn find_compress(&mut self, index: usize) -> &Polygon<K, W> {
         self.polygons
             .get(&self.unionfind.find_compress(index))

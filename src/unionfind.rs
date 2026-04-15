@@ -67,26 +67,29 @@ impl<
         new_set_index
     }
 
-    /// Find the representative of element under the given node, performing path
-    /// compression along the way.
-    pub fn find_compress(&mut self, node: usize) -> usize {
+    /// Find the representative of the given node.
+    ///
+    /// If you want to path compression to be performed, use [`find_compress()`]
+    /// instead.
+    pub fn find(&self, node: usize) -> usize {
         if *self.parents.get(&node).unwrap() != node {
-            // Perform the path compression.
-            let parent = self.find_compress(*self.parents.get(&node).unwrap());
-            self.parents.set(node, parent);
+            return self.find(*self.parents.get(&node).unwrap());
         }
 
         *self.parents.get(&node).unwrap()
     }
 
-    /// Find the representative of the given node without path compression.
+    /// Find the representative of element under the given node, performing path
+    /// compression along the way.
     ///
     /// [https://cp-algorithms.com/data_structures/disjoint_set_union.html#path-compression-optimization](Path compression)
     /// is an optimization that speeds up finding an element by flattening the
-    /// tree formed by all the connected elements.
-    pub fn find(&self, node: usize) -> usize {
+    /// tree formed by all the connected nodes.
+    pub fn find_compress(&mut self, node: usize) -> usize {
         if *self.parents.get(&node).unwrap() != node {
-            return self.find(*self.parents.get(&node).unwrap());
+            // Perform the path compression.
+            let parent = self.find_compress(*self.parents.get(&node).unwrap());
+            self.parents.set(node, parent);
         }
 
         *self.parents.get(&node).unwrap()

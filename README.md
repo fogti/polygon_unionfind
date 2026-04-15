@@ -47,7 +47,7 @@ use polygon_unionfind::{Point, Polygon, PolygonUnionFind};
 
 let mut polygon_unionfind = PolygonUnionFind::<i64, &str>::new();
 
-let first = polygon_unionfind.insert(Polygon {
+let polygon1 = polygon_unionfind.insert(Polygon {
     vertices: vec![
         Point { x: 0, y: 0 },
         Point { x: 3, y: 0 },
@@ -56,7 +56,7 @@ let first = polygon_unionfind.insert(Polygon {
     weight: "first",
 });
 
-let second = polygon_unionfind.insert(Polygon {
+let polygon2 = polygon_unionfind.insert(Polygon {
     vertices: vec![
         Point { x: 1, y: 0 },
         Point { x: 4, y: 0 },
@@ -67,15 +67,15 @@ let second = polygon_unionfind.insert(Polygon {
 
 // Overlapping polygons are now in the same set and thus have the same
 // representative.
-let repr_first = polygon_unionfind.find(first).vertices.len();
-let repr_second = polygon_unionfind.find(second).vertices.len();
-assert_eq!(rep_first, rep_second);
+let polygon1_repr = polygon_unionfind.find(polygon1).vertices.len();
+let polygon2_repr = polygon_unionfind.find(polygon2).vertices.len();
+assert_eq!(polygon1_repr, polygon2_repr);
 ```
 
 ## Documentation
 
 See the [documentation](https://docs.rs/dcel/latest/dcel) for more information
-about `dcel`'s usage.
+about `polygon_unionfind`'s usage.
 
 ## Feature flags
 
@@ -85,7 +85,8 @@ about `dcel`'s usage.
 
 ## Packaging
 
-`dcel` is published as a [crate](https://crates.io/crates/dcel) on the
+`polygon_unionfind` is published as a
+[crate](https://crates.io/crates/polygon_unionfind) on the
 [Crates.io](https://crates.io/) registry.
 
 ## Contributing
