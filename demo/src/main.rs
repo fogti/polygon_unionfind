@@ -69,10 +69,11 @@ fn random_convex_polygon_at_point(center: [i32; 2], radius: i32, count: usize) -
 
 fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> Polygon<i64, ()> {
     Polygon {
-        vertices: ring
+        exterior: ring
             .into_iter()
             .map(|[x, y]| [i64::from(x), i64::from(y)])
             .collect(),
+        interiors: vec![],
         weight: (),
     }
 }
@@ -220,25 +221,18 @@ async fn main() {
         }
 
         for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
-            for window in polygon
-                .vertices
-                .iter()
-                .zip(polygon.vertices.iter().cycle().skip(1))
-                .take(polygon.vertices.len())
-            {
-                let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
-
-                let (from, to) = window;
-                let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
-                let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;
-                draw_line(
-                    start.x,
-                    start.y,
-                    end.x,
-                    end.y,
-                    3.0,
-                    colors[i % colors.len()],
-                );
+            let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
+            let color = colors[i % colors.len()];
+            let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
+                .chain(polygon.interiors.iter().map(Vec::as_slice))
+                .collect();
+            for ring in rings.iter().copied() {
+                for window in ring.iter().zip(ring.iter().cycle().skip(1)).take(ring.len()) {
+                    let (from, to) = window;
+                    let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
+                    let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;
+                    draw_line(start.x, start.y, end.x, end.y, 3.0, color);
+                }
             }
         }
 

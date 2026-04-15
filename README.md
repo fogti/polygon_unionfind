@@ -49,7 +49,7 @@ use polygon_unionfind::{Polygon, PolygonUnionFind};
 let mut polygon_unionfind = PolygonUnionFind::<i64, &str>::new();
 
 let polygon1 = polygon_unionfind.insert(Polygon {
-    vertices: vec![
+    exterior: vec![
         [0, 0],
         [3, 0],
         [4, 2],
@@ -57,11 +57,12 @@ let polygon1 = polygon_unionfind.insert(Polygon {
         [0, 4],
         [-1, 2],
     ],
+    interiors: vec![],
     weight: "first",
 });
 
 let polygon2 = polygon_unionfind.insert(Polygon {
-    vertices: vec![
+    exterior: vec![
         [2, 0],
         [5, 0],
         [6, 2],
@@ -69,13 +70,14 @@ let polygon2 = polygon_unionfind.insert(Polygon {
         [2, 4],
         [1, 2],
     ],
+    interiors: vec![],
     weight: "second",
 });
 
 // Overlapping polygons are now in the same set and thus have the same
 // representative.
-let polygon1_repr = polygon_unionfind.find(polygon1).vertices.len();
-let polygon2_repr = polygon_unionfind.find(polygon2).vertices.len();
+let polygon1_repr = polygon_unionfind.find(polygon1).exterior.len();
+let polygon2_repr = polygon_unionfind.find(polygon2).exterior.len();
 assert_eq!(polygon1_repr, polygon2_repr);
 ```
 

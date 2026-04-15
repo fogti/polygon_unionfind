@@ -35,8 +35,10 @@ mod unionfind;
 
 #[derive(Clone, Debug)]
 pub struct Polygon<K, W = ()> {
-    /// Vertices of the polygon's exterior ring (`[x, y]`).
-    pub vertices: Vec<[K; 2]>,
+    /// Polygon boundary.
+    pub exterior: Vec<[K; 2]>,
+    /// Polygon interior rings.
+    pub interiors: Vec<Vec<[K; 2]>>,
     /// User-defined payload for this polygon.
     pub weight: W,
 }
@@ -184,26 +186,20 @@ where
         for neighbor_id in neighbor_ids {
             let neighbor_representative = self.unionfind.find_compress(neighbor_id);
 
-            let vertices: Vec<[f64; 2]> = polygon
-                .vertices
-                .iter()
-                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
-                .collect();
-            let neighbor_vertices: Vec<[f64; 2]> = self
-                .polygons
-                .get(&neighbor_representative)
-                .unwrap()
-                .vertices
-                .iter()
-                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
-                .collect();
-            let union = vertices.overlay(&neighbor_vertices, OverlayRule::Union, FillRule::EvenOdd);
+            let subj_shape = Self::polygon_to_i_overlay_shape_f64(&polygon);
+            let neighbor = self.polygons.get(&neighbor_representative).unwrap();
+            let clip_shape = Self::polygon_to_i_overlay_shape_f64(neighbor);
+            let union = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
 
             if union.len() >= 2 {
                 continue;
             }
 
-            if let Some(union) = union.get(&0) {
+            if let Some(merged_shape) = union.first() {
+                if merged_shape.is_empty() {
+                    continue;
+                }
+
                 let root_of_neighbor = neighbor_representative;
 
                 // `new_polygon_index` may already point to another root after
@@ -216,18 +212,8 @@ where
                 self.unionfind.union(root_of_neighbor, root_of_inserted);
 
                 let representative = self.unionfind.find_compress(new_polygon_index);
-                polygon = Polygon {
-                    vertices: union[0]
-                        .iter()
-                        .map(|vertex| {
-                            [
-                                K::from_f64(vertex[0]).unwrap(),
-                                K::from_f64(vertex[1]).unwrap(),
-                            ]
-                        })
-                        .collect(),
-                    weight: self.polygons.get(&representative).unwrap().weight.clone(),
-                };
+                let merged_weight = self.polygons.get(&representative).unwrap().weight.clone();
+                polygon = Self::i_overlay_shape_f64_to_polygon(merged_shape, merged_weight);
                 self.polygons.set(representative, polygon.clone());
 
                 let absorbed = if representative == root_of_neighbor {
@@ -235,7 +221,12 @@ where
                 } else {
                     root_of_neighbor
                 };
+
+                // Remove the absorbed polygon from R-tree to shorten query
+                // times.
                 self.remove_polygon_from_rtree(absorbed);
+
+                // The bbox changed, so we need to reinsert the polygon in R-tree.
                 self.reinsert_polygon_in_rtree(representative, &polygon);
             }
         }
@@ -269,7 +260,8 @@ where
         self.polygons.set(
             index,
             Polygon {
-                vertices: polygon.vertices.clone(),
+                exterior: polygon.exterior.clone(),
+                interiors: polygon.interiors.clone(),
                 weight,
             },
         );
@@ -299,12 +291,64 @@ where
     fn rectangle_from_polygon(polygon: &Polygon<K, W>) -> Rectangle<[K; 2]> {
         Rectangle::from_aabb(
             polygon
-                .vertices
+                .exterior
                 .iter()
                 .fold(AABB::new_empty(), |aabb, vertex| {
                     aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
                 }),
         )
+    }
+
+    pub(crate) fn polygon_to_i_overlay_shape_f64(polygon: &Polygon<K, W>) -> Vec<Vec<[f64; 2]>> {
+        let mut shape = Vec::with_capacity(1 + polygon.interiors.len());
+        shape.push(
+            polygon
+                .exterior
+                .iter()
+                .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
+                .collect(),
+        );
+        for ring in &polygon.interiors {
+            shape.push(
+                ring.iter()
+                    .map(|v| [v[0].to_f64().unwrap(), v[1].to_f64().unwrap()])
+                    .collect(),
+            );
+        }
+        shape
+    }
+
+    pub(crate) fn i_overlay_shape_f64_to_polygon(
+        shape: &[Vec<[f64; 2]>],
+        weight: W,
+    ) -> Polygon<K, W> {
+        let outer: Vec<[K; 2]> = shape[0]
+            .iter()
+            .map(|vertex| {
+                [
+                    K::from_f64(vertex[0]).unwrap(),
+                    K::from_f64(vertex[1]).unwrap(),
+                ]
+            })
+            .collect();
+        let inner_rings: Vec<Vec<[K; 2]>> = shape[1..]
+            .iter()
+            .map(|ring| {
+                ring.iter()
+                    .map(|vertex| {
+                        [
+                            K::from_f64(vertex[0]).unwrap(),
+                            K::from_f64(vertex[1]).unwrap(),
+                        ]
+                    })
+                    .collect()
+            })
+            .collect();
+        Polygon {
+            exterior: outer,
+            interiors: inner_rings,
+            weight,
+        }
     }
 }
 
@@ -406,5 +450,53 @@ impl<
                 polygon_weight_marker: PhantomData,
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
+    use i_overlay::float::single::SingleFloatOverlay;
+
+    #[test]
+    fn union_with_self_preserves_inner_rings() {
+        let outer = vec![
+            [0_f64, 0_f64],
+            [10_f64, 0_f64],
+            [10_f64, 10_f64],
+            [0_f64, 10_f64],
+        ];
+        let hole = vec![
+            [2_f64, 2_f64],
+            [8_f64, 2_f64],
+            [8_f64, 8_f64],
+            [2_f64, 8_f64],
+        ];
+        let shape = vec![outer, hole];
+        let merged = shape.overlay(&shape, OverlayRule::Union, FillRule::EvenOdd);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].len(), 2, "outer ring and one hole");
+    }
+
+    #[test]
+    fn polygon_i_overlay_roundtrip() {
+        let polygon: Polygon<i64, ()> = Polygon {
+            exterior: vec![[0, 0], [10, 0], [10, 10], [0, 10]],
+            interiors: vec![vec![[2, 2], [8, 2], [8, 8], [2, 8]]],
+            weight: (),
+        };
+        type Puf = PolygonUnionFind<
+            i64,
+            (),
+            Vec<Polygon<i64, ()>>,
+            AsRefRTree<GeomWithData<Rectangle<[i64; 2]>, usize>>,
+            Vec<usize>,
+            Vec<usize>,
+        >;
+        let shape = Puf::polygon_to_i_overlay_shape_f64(&polygon);
+        let back = Puf::i_overlay_shape_f64_to_polygon(&shape, ());
+        assert_eq!(back.exterior, polygon.exterior);
+        assert_eq!(back.interiors, polygon.interiors);
     }
 }
