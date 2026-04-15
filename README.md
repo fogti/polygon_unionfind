@@ -13,6 +13,17 @@ This library has optional integration with
 structure, allowing to programmatically revert and restore any change using
 deltas or snapshots.
 
+## Demo
+
+For an interactive visualization of `polygon_unionfind`'s merging and undo-redo
+action, you can run our graphical demo implemented using the cross-platform
+[`undoredo`](https://crates.io/crates/macroquad) crate by running the following
+command:
+
+```sh
+cargo run --manifest-path=demo/Cargo.toml
+```
+
 ## Usage
 
 ### Adding dependency
