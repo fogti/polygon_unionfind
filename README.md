@@ -63,7 +63,7 @@ assert_eq!(rep_first, rep_second);
 See the [documentation](https://docs.rs/dcel/latest/dcel) for more information
 about `dcel`'s usage.
 
-## Features
+## Feature flags
 
 - `std` (default): enables `std` support.
 - `undoredo` (optional): provides recording of deltas for Undo/Redo with the

@@ -2,97 +2,85 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use ::rand::Rng;
-use ::rand::thread_rng;
-use i_overlay::i_float::float::compatible::FloatPointCompatible;
 use macroquad::prelude::*;
+use macroquad::rand::gen_range;
 use polygon_unionfind::{Point, Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
-use std::f64::consts::PI;
 use undoredo::{FlushDelta, UndoRedo};
 
-/*fn generate_random_polygons(
-    count: usize,
-    min_vertices: usize,
-    max_vertices: usize,
-    min_coord: i64,
-    max_coord: i64,
-) -> Vec<Vec<[i64; 2]>> {
-    let mut rng = thread_rng();
-    let mut polygons = Vec::with_capacity(count);
-
-    for _ in 0..count {
-        let num_vertices = rng.gen_range(min_vertices..=max_vertices);
-        let mut vertices = Vec::with_capacity(num_vertices);
-
-        for _ in 0..num_vertices {
-            vertices.push([
-                rng.gen_range(min_coord..=max_coord),
-                rng.gen_range(min_coord..=max_coord),
-            ]);
-        }
-
-        polygons.push(vertices);
+/// Monotone-chain convex hull; returns vertices in counter-clockwise order.
+fn convex_hull(points: &[[i32; 2]]) -> Vec<[i32; 2]> {
+    if points.len() < 3 {
+        return points.to_vec();
     }
 
-    polygons
-}*/
+    let mut pts: Vec<[i32; 2]> = points.to_vec();
+    pts.sort_by(|a, b| a[0].cmp(&b[0]).then_with(|| a[1].cmp(&b[1])));
 
-fn generate_random_radial_polygons(
-    count: usize,
-    min_vertices: usize,
-    max_vertices: usize,
-    min_coord: i64,
-    max_coord: i64,
-) -> Vec<Polygon<i64>> {
-    let mut rng = thread_rng();
-    let mut polygons = Vec::with_capacity(count);
-
-    for _ in 0..count {
-        let num_vertices = rng.gen_range(min_vertices..=max_vertices);
-
-        // Pick a random center point for the polygon
-        let center_x = rng.gen_range(min_coord..=max_coord) as f64;
-        let center_y = rng.gen_range(min_coord..=max_coord) as f64;
-
-        // Maximum radius from the center
-        let max_radius = ((max_coord - min_coord) / 2) as f64;
-
-        // Generate vertices around the center
-        let mut angles: Vec<f64> = (0..num_vertices)
-            .map(|_| rng.gen_range(0.0..2.0 * PI))
-            .collect();
-
-        // Sort angles to ensure a proper clockwise or counter-clockwise polygon
-        angles.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let mut vertices = Vec::with_capacity(num_vertices);
-        for angle in angles {
-            let radius = rng.gen_range(0.1 * max_radius..max_radius);
-            let x = center_x + radius * angle.cos();
-            let y = center_y + radius * angle.sin();
-            vertices.push(Point {
-                x: x.round() as i64,
-                y: y.round() as i64,
-            });
-        }
-
-        polygons.push(Polygon {
-            vertices,
-            weight: (),
-        });
+    fn cross(o: [i32; 2], a: [i32; 2], b: [i32; 2]) -> i64 {
+        (a[0] as i64 - o[0] as i64) * (b[1] as i64 - o[1] as i64)
+            - (a[1] as i64 - o[1] as i64) * (b[0] as i64 - o[0] as i64)
     }
 
-    polygons
+    let mut lower = Vec::new();
+    for &p in &pts {
+        while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], p) <= 0 {
+            lower.pop();
+        }
+        lower.push(p);
+    }
+
+    let mut upper = Vec::new();
+    for &p in pts.iter().rev() {
+        while upper.len() >= 2 && cross(upper[upper.len() - 2], upper[upper.len() - 1], p) <= 0 {
+            upper.pop();
+        }
+        upper.push(p);
+    }
+
+    lower.pop();
+    upper.pop();
+    lower.extend(upper);
+    lower
+}
+
+fn random_convex_polygon_at_point(center: [i32; 2], radius: i32, count: usize) -> Vec<[i32; 2]> {
+    let mut points = Vec::with_capacity(count);
+    for _ in 0..count {
+        let angle = gen_range(0.0f32, std::f32::consts::TAU);
+        let r = gen_range(radius as f32 * 0.5, radius as f32);
+        let x = center[0] + (r * angle.cos()) as i32;
+        let y = center[1] + (r * angle.sin()) as i32;
+        points.push([x, y]);
+    }
+
+    let mut hull = convex_hull(&points);
+    if hull.len() < 3 {
+        hull = vec![
+            [center[0] - radius, center[1] - radius],
+            [center[0] + radius, center[1] - radius],
+            [center[0], center[1] + radius],
+        ];
+    }
+    hull
+}
+
+fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> Polygon<i64, ()> {
+    Polygon {
+        vertices: ring
+            .into_iter()
+            .map(|[x, y]| Point {
+                x: i64::from(x),
+                y: i64::from(y),
+            })
+            .collect(),
+        weight: (),
+    }
 }
 
 #[macroquad::main("Polygon Union-Find Viewer")]
 async fn main() {
-    /*let mut undoredo: UndoRedo<PolygonUnionFind<i64, BTreeMap<usize, Vec<Point2<i64>>>>> =
-    UndoRedo::new();*/
     let mut undoredo: UndoRedo<PolygonUnionFindDelta<i64>> = UndoRedo::new();
     let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
-    let original_polygons = generate_random_radial_polygons(7, 3, 8, -200, 200);
-    let mut curr_original_polygon = 0;
 
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
@@ -121,16 +109,6 @@ async fn main() {
             zoom = zoom.clamp(0.1, 20.0);
         }
 
-        if is_mouse_button_down(MouseButton::Right) {
-            if curr_original_polygon < original_polygons.len() {
-                polygon_unionfind.insert(original_polygons[curr_original_polygon].clone());
-                undoredo.commit(polygon_unionfind.flush_delta());
-
-                curr_original_polygon += 1;
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-        }
-
         if is_mouse_button_down(MouseButton::Middle) {
             let (mx, my) = mouse_position();
             let current = vec2(mx, my);
@@ -140,6 +118,27 @@ async fn main() {
             last_mouse_pos = Some(current);
         } else {
             last_mouse_pos = None;
+        }
+
+        let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
+
+        if is_mouse_button_pressed(MouseButton::Left) {
+            if !undo_button.contains(mouse) && !redo_button.contains(mouse) {
+                let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
+                let radius = (60.0 / zoom).max(10.0).round() as i32;
+                let count = gen_range(3, 10) as usize;
+                let ring = random_convex_polygon_at_point(
+                    [click_world.x.round() as i32, click_world.y.round() as i32],
+                    radius,
+                    count,
+                );
+
+                polygon_unionfind.insert(polygon_from_ring_i32(ring));
+                undoredo.commit(polygon_unionfind.flush_delta());
+            }
+
+            next_frame().await;
+            continue;
         }
 
         clear_background(BLACK);
@@ -173,22 +172,6 @@ async fn main() {
             WHITE,
         );
 
-        let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
-
-        for polygon in &original_polygons {
-            for window in polygon
-                .vertices
-                .iter()
-                .zip(polygon.vertices.iter().cycle().skip(1))
-                .take(polygon.vertices.len())
-            {
-                let (from, to) = window;
-                let start = center + vec2(from.x as f32, -from.y as f32) * zoom;
-                let end = center + vec2(to.x as f32, -to.y as f32) * zoom;
-                draw_line(start.x, start.y, end.x, end.y, 1.0, GRAY);
-            }
-        }
-
         for geom_with_data in polygon_unionfind.rtree().collection().iter() {
             let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
             let [bbox_max_x, bbox_max_y] = geom_with_data.geom().upper();
@@ -216,13 +199,13 @@ async fn main() {
                 let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
 
                 let (from, to) = window;
-                let start = center + vec2(from.x() as f32, -from.y() as f32) * zoom;
-                let end = center + vec2(to.x() as f32, -to.y() as f32) * zoom;
+                let start = center + vec2(from.x as f32, -from.y as f32) * zoom;
+                let end = center + vec2(to.x as f32, -to.y as f32) * zoom;
                 draw_line(
-                    start.x + ((i + 1) * 5) as f32,
-                    start.y + ((i + 1) * 5) as f32,
-                    end.x + ((i + 1) * 5) as f32,
-                    end.y + ((i + 1) * 5) as f32,
+                    start.x,
+                    start.y,
+                    end.x,
+                    end.y,
                     3.0,
                     colors[i % colors.len()],
                 );

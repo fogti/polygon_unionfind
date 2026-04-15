@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 triangulator contributors
+# SPDX-FileCopyrightText: 2026 polygon_unionfind contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -8,8 +8,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-i_overlay = "4.4"
 macroquad = "0.4"
 polygon_unionfind = { features = ["undoredo"], path = ".." }
-rand = "0.8"
 undoredo = "0.8"
