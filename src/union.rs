@@ -76,6 +76,116 @@ impl<W> Union<Polygon<f64, W>> for Polygon<f64, W> {
     }
 }
 
+impl<W> Union<Polygon<i8, W>> for Polygon<i8, W> {
+    fn union(a: Polygon<i8, W>, b: Polygon<i8, W>) -> Option<Polygon<i8, W>> {
+        let to_ring = |ring: Vec<[i8; 2]>| -> Option<Vec<IntPoint>> {
+            ring.into_iter()
+                .map(|v| {
+                    Some(IntPoint::new(
+                        i32::try_from(v[0]).ok()?,
+                        i32::try_from(v[1]).ok()?,
+                    ))
+                })
+                .collect()
+        };
+
+        let mut subj_shape: IntShape = Vec::with_capacity(1 + a.interiors.len());
+        subj_shape.push(to_ring(a.exterior)?);
+        for ring in a.interiors {
+            subj_shape.push(to_ring(ring)?);
+        }
+
+        let mut clip_shape: IntShape = Vec::with_capacity(1 + b.interiors.len());
+        clip_shape.push(to_ring(b.exterior)?);
+        for ring in b.interiors {
+            clip_shape.push(to_ring(ring)?);
+        }
+
+        let union =
+            Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
+                .overlay(OverlayRule::Union, FillRule::EvenOdd);
+
+        if union.len() >= 2 {
+            return None;
+        }
+
+        let merged_shape = union.first()?;
+        if merged_shape.is_empty() {
+            return None;
+        }
+
+        let from_ring = |ring: &[IntPoint]| -> Option<Vec<[i8; 2]>> {
+            ring.iter()
+                .map(|v| Some([i8::try_from(v.x).ok()?, i8::try_from(v.y).ok()?]))
+                .collect()
+        };
+
+        Some(Polygon {
+            exterior: from_ring(&merged_shape[0])?,
+            interiors: merged_shape[1..]
+                .iter()
+                .map(|ring| from_ring(ring))
+                .collect::<Option<Vec<_>>>()?,
+            weight: a.weight,
+        })
+    }
+}
+
+impl<W> Union<Polygon<i16, W>> for Polygon<i16, W> {
+    fn union(a: Polygon<i16, W>, b: Polygon<i16, W>) -> Option<Polygon<i16, W>> {
+        let to_ring = |ring: Vec<[i16; 2]>| -> Option<Vec<IntPoint>> {
+            ring.into_iter()
+                .map(|v| {
+                    Some(IntPoint::new(
+                        i32::try_from(v[0]).ok()?,
+                        i32::try_from(v[1]).ok()?,
+                    ))
+                })
+                .collect()
+        };
+
+        let mut subj_shape: IntShape = Vec::with_capacity(1 + a.interiors.len());
+        subj_shape.push(to_ring(a.exterior)?);
+        for ring in a.interiors {
+            subj_shape.push(to_ring(ring)?);
+        }
+
+        let mut clip_shape: IntShape = Vec::with_capacity(1 + b.interiors.len());
+        clip_shape.push(to_ring(b.exterior)?);
+        for ring in b.interiors {
+            clip_shape.push(to_ring(ring)?);
+        }
+
+        let union =
+            Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
+                .overlay(OverlayRule::Union, FillRule::EvenOdd);
+
+        if union.len() >= 2 {
+            return None;
+        }
+
+        let merged_shape = union.first()?;
+        if merged_shape.is_empty() {
+            return None;
+        }
+
+        let from_ring = |ring: &[IntPoint]| -> Option<Vec<[i16; 2]>> {
+            ring.iter()
+                .map(|v| Some([i16::try_from(v.x).ok()?, i16::try_from(v.y).ok()?]))
+                .collect()
+        };
+
+        Some(Polygon {
+            exterior: from_ring(&merged_shape[0])?,
+            interiors: merged_shape[1..]
+                .iter()
+                .map(|ring| from_ring(ring))
+                .collect::<Option<Vec<_>>>()?,
+            weight: a.weight,
+        })
+    }
+}
+
 impl<W> Union<Polygon<i32, W>> for Polygon<i32, W> {
     fn union(a: Polygon<i32, W>, b: Polygon<i32, W>) -> Option<Polygon<i32, W>> {
         let mut subj_shape: IntShape = Vec::with_capacity(1 + a.interiors.len());
@@ -92,15 +202,21 @@ impl<W> Union<Polygon<i32, W>> for Polygon<i32, W> {
         );
 
         let mut clip_shape: IntShape = Vec::with_capacity(1 + b.interiors.len());
-        clip_shape.push(b.exterior.into_iter().map(|v| IntPoint::new(v[0], v[1])).collect());
-        clip_shape.extend(
-            b.interiors
+        clip_shape.push(
+            b.exterior
                 .into_iter()
-                .map(|ring| ring.into_iter().map(|v| IntPoint::new(v[0], v[1])).collect()),
+                .map(|v| IntPoint::new(v[0], v[1]))
+                .collect(),
         );
+        clip_shape.extend(b.interiors.into_iter().map(|ring| {
+            ring.into_iter()
+                .map(|v| IntPoint::new(v[0], v[1]))
+                .collect()
+        }));
 
-        let union = Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
-            .overlay(OverlayRule::Union, FillRule::EvenOdd);
+        let union =
+            Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
+                .overlay(OverlayRule::Union, FillRule::EvenOdd);
 
         if union.len() >= 2 {
             return None;
@@ -126,7 +242,12 @@ impl<W> Union<Polygon<i64, W>> for Polygon<i64, W> {
     fn union(a: Polygon<i64, W>, b: Polygon<i64, W>) -> Option<Polygon<i64, W>> {
         let to_ring = |ring: Vec<[i64; 2]>| -> Option<Vec<IntPoint>> {
             ring.into_iter()
-                .map(|v| Some(IntPoint::new(i32::try_from(v[0]).ok()?, i32::try_from(v[1]).ok()?)))
+                .map(|v| {
+                    Some(IntPoint::new(
+                        i32::try_from(v[0]).ok()?,
+                        i32::try_from(v[1]).ok()?,
+                    ))
+                })
                 .collect()
         };
 
@@ -142,8 +263,9 @@ impl<W> Union<Polygon<i64, W>> for Polygon<i64, W> {
             clip_shape.push(to_ring(ring)?);
         }
 
-        let union = Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
-            .overlay(OverlayRule::Union, FillRule::EvenOdd);
+        let union =
+            Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
+                .overlay(OverlayRule::Union, FillRule::EvenOdd);
 
         if union.len() >= 2 {
             return None;
