@@ -6,7 +6,7 @@
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
-use maplike::{Clear, Get, Insert, IntoIter, KeyedCollection, Push, Remove, Set};
+use maplike::{Clear, Container, Get, Insert, IntoIter, Push, Remove, Set};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -43,8 +43,8 @@ pub struct Polygon<K, W = ()> {
 pub struct PolygonUnionFind<
     K: RTreeNum,
     W = (),
-    PC: KeyedCollection = Vec<Polygon<K, W>>,
-    PR: KeyedCollection = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, usize>>,
+    PC: Container = Vec<Polygon<K, W>>,
+    PR: Container = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, usize>>,
     UFPC = Vec<usize>,
     UFRC = Vec<usize>,
 > {
@@ -55,14 +55,8 @@ pub struct PolygonUnionFind<
     polygon_weight_marker: PhantomData<W>,
 }
 
-impl<
-    K: RTreeNum,
-    W,
-    PC: Default + KeyedCollection,
-    PR: Default + KeyedCollection,
-    UFPC: Default,
-    UFRC: Default,
-> PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
+impl<K: RTreeNum, W, PC: Default + Container, PR: Default + Container, UFPC: Default, UFRC: Default>
+    PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
     /// Create an empty `PolygonUnionFind`.
     #[inline]
@@ -77,7 +71,7 @@ impl<
     }
 }
 
-impl<K: RTreeNum, W, PC: KeyedCollection, PR: KeyedCollection, UFPC, UFRC>
+impl<K: RTreeNum, W, PC: Container, PR: Container, UFPC, UFRC>
     PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
     /// Borrow the raw polygon collection backend.
@@ -293,7 +287,10 @@ where
 impl<K: RTreeNum, W, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
     PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
-    /// Remove all polygons and reset indexing/union state.
+    /// Remove all polygons and their relations.
+    ///
+    /// This resets the strucutre's state to as if it was returned freshly from
+    /// [`new()`].
     pub fn clear(&mut self) {
         self.polygons.clear();
         self.rtree.clear();
@@ -302,7 +299,7 @@ impl<K: RTreeNum, W, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
 }
 
 #[cfg(feature = "undoredo")]
-/// `PolygonUnionFind` with Undo/Redo.
+/// `PolygonUnionFind` that records changes for delta-based Undo/Redo.
 pub type RecordingPolygonUnionFind<K, W = ()> = PolygonUnionFind<
     K,
     W,
@@ -313,8 +310,8 @@ pub type RecordingPolygonUnionFind<K, W = ()> = PolygonUnionFind<
 >;
 
 #[cfg(feature = "undoredo")]
-/// Delta-serializable `PolygonUnionFind` representation for undo/redo snapshots.
-pub type PolygonUnionFindDelta<K, W = ()> = PolygonUnionFind<
+/// Half-delta of `PolygonUnionFind`.
+pub type PolygonUnionFindHalfDelta<K, W = ()> = PolygonUnionFind<
     K,
     W,
     BTreeMap<usize, Polygon<K, W>>,
@@ -324,31 +321,35 @@ pub type PolygonUnionFindDelta<K, W = ()> = PolygonUnionFind<
 >;
 
 #[cfg(feature = "undoredo")]
+/// Delta of `PolygonUnionFind` for delta-based Undo/Redo.
+pub type PolygonUnionFindDelta<K, W = ()> = Delta<PolygonUnionFindHalfDelta<K, W>>;
+
+#[cfg(feature = "undoredo")]
 impl<
     K: RTreeNum,
     W: Clone,
-    PCE: Clone + KeyedCollection,
-    PC: KeyedCollection + Clone + ApplyDelta<PCE>,
-    PRE: Clone + KeyedCollection,
-    PR: KeyedCollection + Clone + ApplyDelta<PRE>,
-    UFPCE: Clone + KeyedCollection,
+    PCE: Clone + Container,
+    PC: Container + Clone + ApplyDelta<PCE>,
+    PRE: Clone + Container,
+    PR: Container + Clone + ApplyDelta<PRE>,
+    UFPCE: Clone + Container,
     UFPC: Clone + ApplyDelta<UFPCE>,
-    UFRCE: Clone + KeyedCollection,
+    UFRCE: Clone + Container,
     UFRC: Clone + ApplyDelta<UFRCE>,
 > ApplyDelta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>
     for PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>
 {
-    fn apply_delta(&mut self, delta: &Delta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>) {
-        let (removed, inserted) = delta.clone().dissolve();
+    fn apply_delta(&mut self, delta: Delta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>) {
+        let (removed, inserted) = delta.dissolve();
 
         let polygons_delta = Delta::with_removed_inserted(removed.polygons, inserted.polygons);
-        self.polygons.apply_delta(&polygons_delta);
+        self.polygons.apply_delta(polygons_delta);
 
         let rtree_delta = Delta::with_removed_inserted(removed.rtree, inserted.rtree);
-        self.rtree.apply_delta(&rtree_delta);
+        self.rtree.apply_delta(rtree_delta);
 
         let unionfind_delta = Delta::with_removed_inserted(removed.unionfind, inserted.unionfind);
-        self.unionfind.apply_delta(&unionfind_delta);
+        self.unionfind.apply_delta(unionfind_delta);
     }
 }
 
@@ -356,13 +357,13 @@ impl<
 impl<
     K: RTreeNum,
     W: Clone,
-    PCE: Clone + KeyedCollection,
-    PC: KeyedCollection + FlushDelta<PCE>,
-    PRE: Clone + KeyedCollection,
-    PR: KeyedCollection + FlushDelta<PRE>,
-    UFPCE: Clone + KeyedCollection,
+    PCE: Clone + Container,
+    PC: Container + FlushDelta<PCE>,
+    PRE: Clone + Container,
+    PR: Container + FlushDelta<PRE>,
+    UFPCE: Clone + Container,
     UFPC: FlushDelta<UFPCE>,
-    UFRCE: Clone + KeyedCollection,
+    UFRCE: Clone + Container,
     UFRC: FlushDelta<UFRCE>,
 > FlushDelta<PolygonUnionFind<K, W, PCE, PRE, UFPCE, UFRCE>>
     for PolygonUnionFind<K, W, PC, PR, UFPC, UFRC>

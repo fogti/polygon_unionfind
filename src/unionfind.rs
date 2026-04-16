@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(feature = "undoredo")]
-use maplike::KeyedCollection;
+use maplike::Container;
 use maplike::{Clear, Get, Push, Set};
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta};
@@ -139,25 +139,25 @@ impl<PC: Clear, RC: Clear> UnionFind<PC, RC> {
 
 #[cfg(feature = "undoredo")]
 impl<
-    PCE: Clone + KeyedCollection,
+    PCE: Clone + Container,
     PC: Clone + ApplyDelta<PCE>,
-    RCE: Clone + KeyedCollection,
+    RCE: Clone + Container,
     RC: Clone + ApplyDelta<RCE>,
 > ApplyDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
 {
-    fn apply_delta(&mut self, delta: &Delta<UnionFind<PCE, RCE>>) {
-        let (removed, inserted) = delta.clone().dissolve();
+    fn apply_delta(&mut self, delta: Delta<UnionFind<PCE, RCE>>) {
+        let (removed, inserted) = delta.dissolve();
 
         let parents_delta = Delta::with_removed_inserted(removed.parents, inserted.parents);
-        self.parents.apply_delta(&parents_delta);
+        self.parents.apply_delta(parents_delta);
 
         let ranks_delta = Delta::with_removed_inserted(removed.ranks, inserted.ranks);
-        self.ranks.apply_delta(&ranks_delta);
+        self.ranks.apply_delta(ranks_delta);
     }
 }
 
 #[cfg(feature = "undoredo")]
-impl<PCE: KeyedCollection, PC: FlushDelta<PCE>, RCE: KeyedCollection, RC: FlushDelta<RCE>>
+impl<PCE: Container, PC: FlushDelta<PCE>, RCE: Container, RC: FlushDelta<RCE>>
     FlushDelta<UnionFind<PCE, RCE>> for UnionFind<PC, RC>
 {
     fn flush_delta(&mut self) -> Delta<UnionFind<PCE, RCE>> {

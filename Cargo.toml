@@ -20,11 +20,11 @@ std = []
 
 [dependencies]
 i_overlay = "4.4"
-maplike = "0.8"
+maplike = "0.9"
 num-traits = "0.2"
 rstar = "0.12"
-rstared = "0.8"
-undoredo = { version = "0.8", features = ["derive", "rstar"], optional = true }
+rstared = "0.9"
+undoredo = { version = "0.9", features = ["derive", "rstar"], optional = true }
 
 [package.metadata.docs.rs]
 cargo-args = ["--all-features", "-Zunstable-options", "-Zrustdoc-scrape-examples"]

@@ -8,7 +8,7 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
-use undoredo::{FlushDelta, UndoRedo};
+use undoredo::UndoRedo;
 
 /// Monotone-chain convex hull; returns vertices in counter-clockwise order.
 fn convex_hull(points: &[[i32; 2]]) -> Vec<[i32; 2]> {
@@ -118,7 +118,7 @@ async fn main() {
                 );
 
                 polygon_unionfind.insert(polygon_from_ring_i32(ring));
-                undoredo.commit(polygon_unionfind.flush_delta());
+                undoredo.commit(&mut polygon_unionfind);
             }
         }
 
@@ -203,7 +203,7 @@ async fn main() {
             );
         }
 
-        for geom_with_data in polygon_unionfind.rtree().collection().iter() {
+        for geom_with_data in polygon_unionfind.rtree().as_ref().iter() {
             let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
             let [bbox_max_x, bbox_max_y] = geom_with_data.geom().upper();
 
