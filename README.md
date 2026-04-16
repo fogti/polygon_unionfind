@@ -1,5 +1,9 @@
 # polygon_unionfind
 
+[![Docs](https://docs.rs/undoredo/badge.svg)](https://docs.rs/polygon_unionfind/)
+[![Crates.io](https://img.shields.io/crates/v/polygon_unionfind.svg)](https://crates.io/crates/polygon_unionfind)
+[![MIT OR Apache 2.0](https://img.shields.io/crates/l/polygon_unionfind.svg)](#licence)
+
 `polygon_unionfind` is a Rust library that implements disjoint-polygon data
 structure (polygon union-find): a disjoint-set data structure where sets are
 polygons.
@@ -83,8 +87,9 @@ assert_eq!(polygon1_repr, polygon2_repr);
 
 ## Documentation
 
-See the [documentation](https://docs.rs/dcel/latest/dcel) for more information
-about `polygon_unionfind`'s usage.
+See the
+[documentation](https://docs.rs/polygon_unionfind/latest/polygon_unionfind) for
+more information about `polygon_unionfind`'s usage.
 
 ## Feature flags
 
@@ -107,7 +112,7 @@ We welcome issues and pull requests from anyone to our
 
 ### Outbound licence
 
-`dcel` is dual-licensed as under either of
+`polygon_unionfind` is dual-licensed as under either of
 
 - [MIT license](./LICENSES/MIT.txt),
 - [Apache License, Version 2.0](./LICENSES/Apache-2.0.txt),
