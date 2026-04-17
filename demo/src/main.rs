@@ -7,7 +7,7 @@
 
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use polygon_unionfind::{Polygon, PolygonUnionFindDelta, RecordingPolygonUnionFind};
+use polygon_unionfind::{PolygonUnionFindDelta, PolygonWithWeight, RecordingPolygonUnionFind};
 use undoredo::UndoRedo;
 
 /// Monotone-chain convex hull; returns vertices in counter-clockwise order.
@@ -67,8 +67,8 @@ fn random_convex_polygon_at_point(center: [i32; 2], radius: i32, count: usize) -
     hull
 }
 
-fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> Polygon<i64, ()> {
-    Polygon {
+fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithWeight<i64, ()> {
+    PolygonWithWeight {
         exterior: ring
             .into_iter()
             .map(|[x, y]| [i64::from(x), i64::from(y)])
@@ -227,7 +227,11 @@ async fn main() {
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
                 .collect();
             for ring in rings.iter().copied() {
-                for window in ring.iter().zip(ring.iter().cycle().skip(1)).take(ring.len()) {
+                for window in ring
+                    .iter()
+                    .zip(ring.iter().cycle().skip(1))
+                    .take(ring.len())
+                {
                     let (from, to) = window;
                     let start = center + vec2(from[0] as f32, -from[1] as f32) * zoom;
                     let end = center + vec2(to[0] as f32, -to[1] as f32) * zoom;

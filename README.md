@@ -48,11 +48,11 @@ If you don't need to perform undo and redo operations, you can remove the
 Following is a basic usage example of `polygon_unionfind`.
 
 ```rust
-use polygon_unionfind::{Polygon, PolygonUnionFind};
+use polygon_unionfind::{PolygonUnionFind, PolygonWithWeight};
 
-let mut polygon_unionfind = PolygonUnionFind::<i64, &str>::new();
+let mut polygon_unionfind = PolygonUnionFind::<i64, PolygonWithWeight<i64, &str>>::new();
 
-let polygon1 = polygon_unionfind.insert(Polygon {
+let polygon1 = polygon_unionfind.insert(PolygonWithWeight {
     exterior: vec![
         [0, 0],
         [3, 0],
@@ -65,7 +65,7 @@ let polygon1 = polygon_unionfind.insert(Polygon {
     weight: "first",
 });
 
-let polygon2 = polygon_unionfind.insert(Polygon {
+let polygon2 = polygon_unionfind.insert(PolygonWithWeight {
     exterior: vec![
         [2, 0],
         [5, 0],
