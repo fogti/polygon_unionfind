@@ -18,16 +18,16 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 #[cfg(feature = "undoredo")]
 use crate::PolygonWithWeight;
 use crate::Rings;
-use crate::boolops::Union;
+use crate::bool_ops::Union;
 use crate::unionfind::UnionFind;
-use crate::{Polygon, polygon::PolygonId};
+use crate::{Polygon, PolygonId};
 
 #[derive(Clone, Debug)]
 pub struct PolygonUnionFind<
     K: RTreeNum,
     P = Polygon<K>,
     PC: Container = Vec<P>,
-    PR: Container = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, usize>>,
+    PR: Container = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
     UFPC = Vec<usize>,
     UFRC = Vec<usize>,
 > {
@@ -87,8 +87,8 @@ impl<
     K: RTreeNum,
     P,
     PC: Clone + IntoIter<usize> + Get<usize, Value = P> + Push<usize> + Set<usize>,
-    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
-        + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
@@ -127,9 +127,9 @@ impl<
     K: RTreeNum,
     P: Clone + Rings<K> + Union<P>,
     PC: Get<usize, Value = P> + Push<usize> + Set<usize>,
-    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>
-        + Insert<GeomWithData<Rectangle<[K; 2]>, usize>, Value = ()>
-        + Remove<GeomWithData<Rectangle<[K; 2]>, usize>>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
@@ -143,21 +143,24 @@ where
     pub fn insert(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
-        let rectangle = Self::rectangle_from_polygon(&polygon);
-        self.rtree
-            .insert(GeomWithData::new(rectangle.clone(), new_polygon_index), ());
+        let bbox = Self::rectangle_from_polygon(&polygon);
+        self.rtree.insert(
+            GeomWithData::new(bbox.clone(), PolygonId::new(new_polygon_index)),
+            (),
+        );
 
         let id = self.polygons.push(polygon.clone());
+        debug_assert_eq!(new_polygon_index, id);
 
-        let neighbor_ids: Vec<usize> = self
+        let neighbor_ids: Vec<PolygonId> = self
             .rtree
             .as_ref()
-            .locate_in_envelope_intersecting(&rectangle.envelope())
+            .locate_in_envelope_intersecting(&bbox.envelope())
             .map(|neighbor| neighbor.data)
             .collect();
 
         for neighbor_id in neighbor_ids {
-            let neighbor_representative = self.unionfind.find_compress(neighbor_id);
+            let neighbor_representative = self.unionfind.find_compress(neighbor_id.index());
             let root_of_inserted = self.unionfind.find_compress(new_polygon_index);
 
             if neighbor_representative == root_of_inserted {
@@ -165,7 +168,7 @@ where
             }
 
             let neighbor = self.polygons.get(&neighbor_representative).unwrap().clone();
-            let Some(merged) = <P as Union<P>>::union(polygon.clone(), neighbor) else {
+            let Some(merged) = P::union(polygon.clone(), neighbor) else {
                 continue;
             };
 
@@ -184,31 +187,31 @@ where
 
             // Remove the absorbed polygon from R-tree to shorten query
             // times.
-            self.remove_polygon_from_rtree(absorbed);
+            self.remove_polygon_from_rtree(PolygonId::new(absorbed));
 
             // The bbox changed, so we need to reinsert the polygon in R-tree.
-            self.reinsert_polygon_in_rtree(representative, &polygon);
+            self.reinsert_polygon_in_rtree(PolygonId::new(representative), &polygon);
         }
 
         PolygonId::new(id)
     }
 
-    fn remove_polygon_from_rtree(&mut self, polygon_id: usize) {
-        let item = self
+    fn remove_polygon_from_rtree(&mut self, polygon_id: PolygonId) {
+        let geom_with_data = self
             .rtree
             .as_ref()
             .iter()
             .find(|g| g.data == polygon_id)
             .cloned();
-        if let Some(item) = item {
-            self.rtree.remove(&item);
+        if let Some(geom_with_data) = geom_with_data {
+            self.rtree.remove(&geom_with_data);
         }
     }
 
-    fn reinsert_polygon_in_rtree(&mut self, polygon_id: usize, polygon: &P) {
+    fn reinsert_polygon_in_rtree(&mut self, polygon_id: PolygonId, polygon: &P) {
         self.remove_polygon_from_rtree(polygon_id);
-        let rect = Self::rectangle_from_polygon(polygon);
-        self.rtree.insert(GeomWithData::new(rect, polygon_id), ());
+        let bbox = Self::rectangle_from_polygon(polygon);
+        self.rtree.insert(GeomWithData::new(bbox, polygon_id), ());
     }
 
     /// Find the representative polygon for `index` without path compression.
@@ -264,7 +267,7 @@ pub type RecordingPolygonUnionFind<K, P = PolygonWithWeight<K>> = PolygonUnionFi
     K,
     P,
     Recorder<Vec<P>, BTreeMap<usize, P>>,
-    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, usize>>>,
+    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>,
     Recorder<Vec<usize>>,
     Recorder<Vec<usize>>,
 >;
@@ -275,7 +278,7 @@ pub type PolygonUnionFindHalfDelta<K, P = PolygonWithWeight<K>> = PolygonUnionFi
     K,
     P,
     BTreeMap<usize, P>,
-    BTreeMap<GeomWithData<Rectangle<[K; 2]>, usize>, ()>,
+    BTreeMap<GeomWithData<Rectangle<[K; 2]>, PolygonId>, ()>,
     BTreeMap<usize, usize>,
     BTreeMap<usize, usize>,
 >;

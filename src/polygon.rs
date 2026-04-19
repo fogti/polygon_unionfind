@@ -6,9 +6,9 @@ use core::{iter::Map, slice::Iter};
 
 /// An index pointing to a polygon.
 ///
-/// This is just a thin newtype wrapper over [usize] for clarity and to
-/// disambiguate it from other index types. Use the [id()] method to access the
-/// underlying index.
+/// This is just a thin newtype wrapper over [`usize`] for clarity and to
+/// disambiguate it from other index types. Use the [`index()`] method to access
+/// the underlying index.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct PolygonId(usize);
 
@@ -21,7 +21,7 @@ impl PolygonId {
 
     /// Returns the underlying index.
     #[inline]
-    pub fn id(self) -> usize {
+    pub fn index(self) -> usize {
         self.0
     }
 }

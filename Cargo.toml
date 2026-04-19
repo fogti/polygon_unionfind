@@ -20,10 +20,11 @@ std = []
 
 [dependencies]
 i_overlay = "4.4"
-maplike = "0.9"
+maplike = { version = "0.9", features = ["stable-vec"] }
 num-traits = "0.2"
 rstar = "0.12"
 rstared = "0.9"
+stable-vec = "0.4.2"
 undoredo = { version = "0.9", features = ["derive", "rstar"], optional = true }
 
 [package.metadata.docs.rs]

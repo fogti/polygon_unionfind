@@ -23,7 +23,7 @@ pub trait Intersect<T> {
 }
 
 pub trait Difference<T> {
-    fn difference(subj: T, clip: T) -> Option<T>;
+    fn difference(subj: T, clip: T) -> Vec<T>;
 }
 
 fn rings_to_shape<K, P: Rings<K>>(polygon: &P) -> Vec<Vec<[K; 2]>>
@@ -48,6 +48,19 @@ fn first_merged_shape<K>(union: Vec<Vec<Vec<[K; 2]>>>) -> Option<(Vec<[K; 2]>, V
 
     let exterior = merged_shape.remove(0);
     Some((exterior, merged_shape))
+}
+
+fn all_merged_shapes<K>(shapes: Vec<Vec<Vec<[K; 2]>>>) -> Vec<(Vec<[K; 2]>, Vec<Vec<[K; 2]>>)> {
+    shapes
+        .into_iter()
+        .filter_map(|mut shape| {
+            if shape.is_empty() {
+                return None;
+            }
+            let exterior = shape.remove(0);
+            Some((exterior, shape))
+        })
+        .collect()
 }
 
 fn overlay_int_polygons<K, A: Rings<K>, B: Rings<K>>(
@@ -107,6 +120,63 @@ where
         .collect::<Option<Vec<_>>>()?;
 
     Some((exterior, interiors))
+}
+
+fn overlay_int_polygons_many<K, A: Rings<K>, B: Rings<K>>(
+    a: &A,
+    b: &B,
+    overlay_rule: OverlayRule,
+) -> Option<Vec<(Vec<[K; 2]>, Vec<Vec<[K; 2]>>)>>
+where
+    K: Copy + TryFrom<i32>,
+    i32: TryFrom<K>,
+{
+    let to_int_ring = |ring: &[[K; 2]]| -> Option<Vec<IntPoint>> {
+        ring.iter()
+            .map(|vertex| {
+                Some(IntPoint::new(
+                    i32::try_from(vertex[0]).ok()?,
+                    i32::try_from(vertex[1]).ok()?,
+                ))
+            })
+            .collect()
+    };
+
+    let mut subj_shape: IntShape = Vec::new();
+    subj_shape.push(to_int_ring(a.exterior())?);
+    for ring in a.interiors() {
+        subj_shape.push(to_int_ring(ring)?);
+    }
+
+    let mut clip_shape: IntShape = Vec::new();
+    clip_shape.push(to_int_ring(b.exterior())?);
+    for ring in b.interiors() {
+        clip_shape.push(to_int_ring(ring)?);
+    }
+
+    let shapes = Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
+        .overlay(overlay_rule, FillRule::EvenOdd);
+
+    let from_int_ring = |ring: &[IntPoint]| -> Option<Vec<[K; 2]>> {
+        ring.iter()
+            .map(|vertex| Some([K::try_from(vertex.x).ok()?, K::try_from(vertex.y).ok()?]))
+            .collect()
+    };
+
+    shapes
+        .into_iter()
+        .map(|shape| {
+            if shape.is_empty() {
+                return None;
+            }
+            let exterior = from_int_ring(&shape[0])?;
+            let interiors = shape[1..]
+                .iter()
+                .map(|ring| from_int_ring(ring))
+                .collect::<Option<Vec<_>>>()?;
+            Some((exterior, interiors))
+        })
+        .collect()
 }
 
 macro_rules! impl_overlay_float {
@@ -171,6 +241,80 @@ macro_rules! impl_overlay_int {
     };
 }
 
+macro_rules! impl_difference_many_float {
+    ($k:ty) => {
+        impl Difference<Polygon<$k>> for Polygon<$k> {
+            fn difference(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
+                let subj_shape = rings_to_shape(&a);
+                let clip_shape = rings_to_shape(&b);
+                let result =
+                    subj_shape.overlay(&clip_shape, OverlayRule::Difference, FillRule::EvenOdd);
+                all_merged_shapes(result)
+                    .into_iter()
+                    .map(|(exterior, interiors)| Polygon {
+                        exterior,
+                        interiors,
+                    })
+                    .collect()
+            }
+        }
+
+        impl<W: Clone> Difference<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+            fn difference(
+                a: PolygonWithWeight<$k, W>,
+                b: PolygonWithWeight<$k, W>,
+            ) -> Vec<PolygonWithWeight<$k, W>> {
+                let subj_shape = rings_to_shape(&a);
+                let clip_shape = rings_to_shape(&b);
+                let result =
+                    subj_shape.overlay(&clip_shape, OverlayRule::Difference, FillRule::EvenOdd);
+                all_merged_shapes(result)
+                    .into_iter()
+                    .map(|(exterior, interiors)| PolygonWithWeight {
+                        exterior,
+                        interiors,
+                        weight: a.weight.clone(),
+                    })
+                    .collect()
+            }
+        }
+    };
+}
+
+macro_rules! impl_difference_many_int {
+    ($k:ty) => {
+        impl Difference<Polygon<$k>> for Polygon<$k> {
+            fn difference(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
+                overlay_int_polygons_many(&a, &b, OverlayRule::Difference)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(exterior, interiors)| Polygon {
+                        exterior,
+                        interiors,
+                    })
+                    .collect()
+            }
+        }
+
+        impl<W: Clone> Difference<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+            fn difference(
+                a: PolygonWithWeight<$k, W>,
+                b: PolygonWithWeight<$k, W>,
+            ) -> Vec<PolygonWithWeight<$k, W>> {
+                overlay_int_polygons_many(&a, &b, OverlayRule::Difference)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(exterior, interiors)| PolygonWithWeight {
+                        exterior,
+                        interiors,
+                        weight: a.weight.clone(),
+                    })
+                    .collect()
+            }
+        }
+    };
+}
+
 impl_overlay_float!(f32, Union, union, OverlayRule::Union);
 impl_overlay_float!(f64, Union, union, OverlayRule::Union);
 impl_overlay_int!(i8, Union, union, OverlayRule::Union);
@@ -185,9 +329,9 @@ impl_overlay_int!(i16, Intersect, intersect, OverlayRule::Intersect);
 impl_overlay_int!(i32, Intersect, intersect, OverlayRule::Intersect);
 impl_overlay_int!(i64, Intersect, intersect, OverlayRule::Intersect);
 
-impl_overlay_float!(f32, Difference, difference, OverlayRule::Difference);
-impl_overlay_float!(f64, Difference, difference, OverlayRule::Difference);
-impl_overlay_int!(i8, Difference, difference, OverlayRule::Difference);
-impl_overlay_int!(i16, Difference, difference, OverlayRule::Difference);
-impl_overlay_int!(i32, Difference, difference, OverlayRule::Difference);
-impl_overlay_int!(i64, Difference, difference, OverlayRule::Difference);
+impl_difference_many_float!(f32);
+impl_difference_many_float!(f64);
+impl_difference_many_int!(i8);
+impl_difference_many_int!(i16);
+impl_difference_many_int!(i32);
+impl_difference_many_int!(i64);

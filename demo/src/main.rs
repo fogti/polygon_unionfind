@@ -7,8 +7,7 @@
 
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use polygon_unionfind::{PolygonUnionFindDelta, PolygonWithWeight, RecordingPolygonUnionFind};
-use undoredo::UndoRedo;
+use polygon_unionfind::{PolygonSet, PolygonWithWeight};
 
 /// Monotone-chain convex hull; returns vertices in counter-clockwise order.
 fn convex_hull(points: &[[i32; 2]]) -> Vec<[i32; 2]> {
@@ -78,48 +77,46 @@ fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithWeight<i64, ()> {
     }
 }
 
-#[macroquad::main("Polygon Union-Find Viewer")]
+fn random_polygon_at_screen_click(
+    center: Vec2,
+    zoom: f32,
+    mx: f32,
+    my: f32,
+) -> PolygonWithWeight<i64, ()> {
+    let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
+    let radius = (60.0 / zoom).max(10.0).round() as i32;
+    let count = gen_range(3, 10) as usize;
+    let ring = random_convex_polygon_at_point(
+        [click_world.x.round() as i32, click_world.y.round() as i32],
+        radius,
+        count,
+    );
+    polygon_from_ring_i32(ring)
+}
+
+#[macroquad::main("Polygon Set Viewer")]
 async fn main() {
-    let mut undoredo: UndoRedo<PolygonUnionFindDelta<i64>> = UndoRedo::new();
-    let mut polygon_unionfind: RecordingPolygonUnionFind<i64> = RecordingPolygonUnionFind::new();
+    let mut polygon_set: PolygonSet<i64, PolygonWithWeight<i64, ()>> = PolygonSet::new();
 
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
     let mut last_mouse_pos: Option<Vec2> = None;
-    let mut show_insert_hint = true;
+    let mut show_hint = true;
 
     loop {
-        let undo_button = Rect::new(20.0, 20.0, 100.0, 36.0);
-        let redo_button = Rect::new(130.0, 20.0, 100.0, 36.0);
         let (mx, my) = mouse_position();
-        let mouse = vec2(mx, my);
         let left_pressed = is_mouse_button_pressed(MouseButton::Left);
-        if show_insert_hint && left_pressed {
-            show_insert_hint = false;
+        let right_pressed = is_mouse_button_pressed(MouseButton::Right);
+        if show_hint && (left_pressed || right_pressed) {
+            show_hint = false;
         }
-        let undo_clicked = left_pressed && undo_button.contains(mouse);
-        let redo_clicked = left_pressed && redo_button.contains(mouse);
 
         let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
 
-        if undo_clicked {
-            undoredo.undo(&mut polygon_unionfind);
-        } else if redo_clicked {
-            undoredo.redo(&mut polygon_unionfind);
-        } else if left_pressed {
-            if !undo_button.contains(mouse) && !redo_button.contains(mouse) {
-                let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
-                let radius = (60.0 / zoom).max(10.0).round() as i32;
-                let count = gen_range(3, 10) as usize;
-                let ring = random_convex_polygon_at_point(
-                    [click_world.x.round() as i32, click_world.y.round() as i32],
-                    radius,
-                    count,
-                );
-
-                polygon_unionfind.insert(polygon_from_ring_i32(ring));
-                undoredo.commit(&mut polygon_unionfind);
-            }
+        if left_pressed {
+            polygon_set.add(random_polygon_at_screen_click(center, zoom, mx, my));
+        } else if right_pressed {
+            polygon_set.subtract(random_polygon_at_screen_click(center, zoom, mx, my));
         }
 
         let (_, scroll_y) = mouse_wheel();
@@ -141,57 +138,8 @@ async fn main() {
 
         clear_background(BLACK);
 
-        let undo_hover = undo_button.contains(mouse);
-        let redo_hover = redo_button.contains(mouse);
-        let undo_pressed = undo_hover && is_mouse_button_down(MouseButton::Left);
-        let redo_pressed = redo_hover && is_mouse_button_down(MouseButton::Left);
-
-        let undo_fill = if undo_pressed {
-            LIGHTGRAY
-        } else if undo_hover {
-            GRAY
-        } else {
-            DARKGRAY
-        };
-        let redo_fill = if redo_pressed {
-            LIGHTGRAY
-        } else if redo_hover {
-            GRAY
-        } else {
-            DARKGRAY
-        };
-
-        draw_rectangle(
-            undo_button.x,
-            undo_button.y,
-            undo_button.w,
-            undo_button.h,
-            undo_fill,
-        );
-        draw_text(
-            "undo",
-            undo_button.x + 26.0,
-            undo_button.y + 24.0,
-            28.0,
-            WHITE,
-        );
-        draw_rectangle(
-            redo_button.x,
-            redo_button.y,
-            redo_button.w,
-            redo_button.h,
-            redo_fill,
-        );
-        draw_text(
-            "redo",
-            redo_button.x + 26.0,
-            redo_button.y + 24.0,
-            28.0,
-            WHITE,
-        );
-
-        if show_insert_hint {
-            let hint = "Click to insert a new polygon.";
+        if show_hint {
+            let hint = "Left-click to add, right-click to subtract.";
             let hint_size = 22.0;
             let hint_dims = measure_text(hint, None, hint_size as u16, 1.0);
             draw_text(
@@ -203,7 +151,7 @@ async fn main() {
             );
         }
 
-        for geom_with_data in polygon_unionfind.rtree().as_ref().iter() {
+        for geom_with_data in polygon_set.rtree().as_ref().iter() {
             let [bbox_min_x, bbox_min_y] = geom_with_data.geom().lower();
             let [bbox_max_x, bbox_max_y] = geom_with_data.geom().upper();
 
@@ -220,7 +168,7 @@ async fn main() {
             );
         }
 
-        for (i, polygon) in polygon_unionfind.polygons().into_iter().enumerate() {
+        for (i, (_index, polygon)) in polygon_set.polygons().iter().enumerate() {
             let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
             let color = colors[i % colors.len()];
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
