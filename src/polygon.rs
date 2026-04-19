@@ -4,6 +4,28 @@
 
 use core::{iter::Map, slice::Iter};
 
+/// An index pointing to a polygon.
+///
+/// This is just a thin newtype wrapper over [usize] for clarity and to
+/// disambiguate it from other index types. Use the [id()] method to access the
+/// underlying index.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct PolygonId(usize);
+
+impl PolygonId {
+    /// Wrap a vertex index in a newtype struct.
+    #[inline]
+    pub fn new(id: usize) -> Self {
+        Self(id)
+    }
+
+    /// Returns the underlying index.
+    #[inline]
+    pub fn id(self) -> usize {
+        self.0
+    }
+}
+
 pub trait Rings<K> {
     type RingIter<'a>: Iterator<Item = &'a [[K; 2]]>
     where

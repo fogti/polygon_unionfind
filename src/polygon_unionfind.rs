@@ -15,12 +15,12 @@ use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
-use crate::Polygon;
 #[cfg(feature = "undoredo")]
 use crate::PolygonWithWeight;
 use crate::Rings;
 use crate::union::Union;
 use crate::unionfind::UnionFind;
+use crate::{Polygon, polygon::PolygonId};
 
 #[derive(Clone, Debug)]
 pub struct PolygonUnionFind<
@@ -140,7 +140,7 @@ where
     ///
     /// Returns the polygon's new id even if it was immediately absorbed by
     /// another polygon.
-    pub fn insert(&mut self, mut polygon: P) -> usize {
+    pub fn insert(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
         let rectangle = Self::rectangle_from_polygon(&polygon);
@@ -190,7 +190,7 @@ where
             self.reinsert_polygon_in_rtree(representative, &polygon);
         }
 
-        id
+        PolygonId::new(id)
     }
 
     fn remove_polygon_from_rtree(&mut self, polygon_id: usize) {
