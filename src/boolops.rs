@@ -5,10 +5,6 @@
 use alloc::vec::Vec;
 use core::{convert::TryFrom, slice};
 
-pub trait Union<T> {
-    fn union(a: T, b: T) -> Option<T>;
-}
-
 use i_overlay::{
     core::{fill_rule::FillRule, overlay::Overlay, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -17,6 +13,18 @@ use i_overlay::{
 };
 
 use crate::{Polygon, PolygonWithWeight, Rings};
+
+pub trait Union<T> {
+    fn union(subj: T, clip: T) -> Option<T>;
+}
+
+pub trait Intersect<T> {
+    fn intersect(subj: T, clip: T) -> Option<T>;
+}
+
+pub trait Difference<T> {
+    fn difference(subj: T, clip: T) -> Option<T>;
+}
 
 fn rings_to_shape<K, P: Rings<K>>(polygon: &P) -> Vec<Vec<[K; 2]>>
 where
@@ -42,9 +50,10 @@ fn first_merged_shape<K>(union: Vec<Vec<Vec<[K; 2]>>>) -> Option<(Vec<[K; 2]>, V
     Some((exterior, merged_shape))
 }
 
-fn int_union_polygons<K, A: Rings<K>, B: Rings<K>>(
+fn overlay_int_polygons<K, A: Rings<K>, B: Rings<K>>(
     a: &A,
     b: &B,
+    overlay_rule: OverlayRule,
 ) -> Option<(Vec<[K; 2]>, Vec<Vec<[K; 2]>>)>
 where
     K: Copy + TryFrom<i32>,
@@ -74,7 +83,7 @@ where
     }
 
     let union = Overlay::with_shapes(slice::from_ref(&subj_shape), slice::from_ref(&clip_shape))
-        .overlay(OverlayRule::Union, FillRule::EvenOdd);
+        .overlay(overlay_rule, FillRule::EvenOdd);
 
     if union.len() >= 2 {
         return None;
@@ -100,14 +109,14 @@ where
     Some((exterior, interiors))
 }
 
-macro_rules! impl_union_float {
-    ($k:ty) => {
-        impl Union<Polygon<$k>> for Polygon<$k> {
-            fn union(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
+macro_rules! impl_overlay_float {
+    ($k:ty, $trait:ident, $method:ident, $overlay_rule:expr) => {
+        impl $trait<Polygon<$k>> for Polygon<$k> {
+            fn $method(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let union = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
-                let (exterior, interiors) = first_merged_shape(union)?;
+                let result = subj_shape.overlay(&clip_shape, $overlay_rule, FillRule::EvenOdd);
+                let (exterior, interiors) = first_merged_shape(result)?;
                 Some(Polygon {
                     exterior,
                     interiors,
@@ -115,15 +124,15 @@ macro_rules! impl_union_float {
             }
         }
 
-        impl<W> Union<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
-            fn union(
+        impl<W> $trait<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+            fn $method(
                 a: PolygonWithWeight<$k, W>,
                 b: PolygonWithWeight<$k, W>,
             ) -> Option<PolygonWithWeight<$k, W>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let union = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
-                let (exterior, interiors) = first_merged_shape(union)?;
+                let result = subj_shape.overlay(&clip_shape, $overlay_rule, FillRule::EvenOdd);
+                let (exterior, interiors) = first_merged_shape(result)?;
                 Some(PolygonWithWeight {
                     exterior,
                     interiors,
@@ -134,11 +143,11 @@ macro_rules! impl_union_float {
     };
 }
 
-macro_rules! impl_union_int {
-    ($k:ty) => {
-        impl Union<Polygon<$k>> for Polygon<$k> {
-            fn union(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
-                let (exterior, interiors) = int_union_polygons(&a, &b)?;
+macro_rules! impl_overlay_int {
+    ($k:ty, $trait:ident, $method:ident, $overlay_rule:expr) => {
+        impl $trait<Polygon<$k>> for Polygon<$k> {
+            fn $method(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
+                let (exterior, interiors) = overlay_int_polygons(&a, &b, $overlay_rule)?;
                 Some(Polygon {
                     exterior,
                     interiors,
@@ -146,12 +155,12 @@ macro_rules! impl_union_int {
             }
         }
 
-        impl<W> Union<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
-            fn union(
+        impl<W> $trait<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+            fn $method(
                 a: PolygonWithWeight<$k, W>,
                 b: PolygonWithWeight<$k, W>,
             ) -> Option<PolygonWithWeight<$k, W>> {
-                let (exterior, interiors) = int_union_polygons(&a, &b)?;
+                let (exterior, interiors) = overlay_int_polygons(&a, &b, $overlay_rule)?;
                 Some(PolygonWithWeight {
                     exterior,
                     interiors,
@@ -162,9 +171,23 @@ macro_rules! impl_union_int {
     };
 }
 
-impl_union_float!(f32);
-impl_union_float!(f64);
-impl_union_int!(i8);
-impl_union_int!(i16);
-impl_union_int!(i32);
-impl_union_int!(i64);
+impl_overlay_float!(f32, Union, union, OverlayRule::Union);
+impl_overlay_float!(f64, Union, union, OverlayRule::Union);
+impl_overlay_int!(i8, Union, union, OverlayRule::Union);
+impl_overlay_int!(i16, Union, union, OverlayRule::Union);
+impl_overlay_int!(i32, Union, union, OverlayRule::Union);
+impl_overlay_int!(i64, Union, union, OverlayRule::Union);
+
+impl_overlay_float!(f32, Intersect, intersect, OverlayRule::Intersect);
+impl_overlay_float!(f64, Intersect, intersect, OverlayRule::Intersect);
+impl_overlay_int!(i8, Intersect, intersect, OverlayRule::Intersect);
+impl_overlay_int!(i16, Intersect, intersect, OverlayRule::Intersect);
+impl_overlay_int!(i32, Intersect, intersect, OverlayRule::Intersect);
+impl_overlay_int!(i64, Intersect, intersect, OverlayRule::Intersect);
+
+impl_overlay_float!(f32, Difference, difference, OverlayRule::Difference);
+impl_overlay_float!(f64, Difference, difference, OverlayRule::Difference);
+impl_overlay_int!(i8, Difference, difference, OverlayRule::Difference);
+impl_overlay_int!(i16, Difference, difference, OverlayRule::Difference);
+impl_overlay_int!(i32, Difference, difference, OverlayRule::Difference);
+impl_overlay_int!(i64, Difference, difference, OverlayRule::Difference);

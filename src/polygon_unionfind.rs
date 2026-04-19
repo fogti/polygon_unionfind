@@ -18,7 +18,7 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 #[cfg(feature = "undoredo")]
 use crate::PolygonWithWeight;
 use crate::Rings;
-use crate::union::Union;
+use crate::boolops::Union;
 use crate::unionfind::UnionFind;
 use crate::{Polygon, polygon::PolygonId};
 

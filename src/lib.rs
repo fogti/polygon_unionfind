@@ -10,18 +10,18 @@ extern crate std;
 // No feature for `alloc` because it would be always enabled anyway.
 extern crate alloc;
 
+mod boolops;
 mod polygon;
 mod polygon_unionfind;
-mod union;
 mod unionfind;
 
+pub use polygon::{Polygon, PolygonWithWeight, Rings};
 pub use polygon_unionfind::PolygonUnionFind;
 #[cfg(feature = "undoredo")]
 pub use polygon_unionfind::{
     PolygonUnionFindDelta, PolygonUnionFindHalfDelta, RecordingPolygonUnionFind,
 };
 pub use unionfind::UnionFind;
-pub use polygon::{Polygon, PolygonWithWeight, Rings};
 
 #[cfg(test)]
 mod tests {
