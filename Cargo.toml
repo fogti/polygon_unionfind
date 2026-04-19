@@ -25,7 +25,7 @@ num-traits = "0.2"
 rstar = "0.12"
 rstared = "0.9"
 stable-vec = "0.4.2"
-undoredo = { version = "0.9", features = ["derive", "rstar"], optional = true }
+undoredo = { version = "0.9", features = ["derive", "rstar", "stable-vec"], optional = true }
 
 [package.metadata.docs.rs]
 cargo-args = ["--all-features", "-Zunstable-options", "-Zrustdoc-scrape-examples"]

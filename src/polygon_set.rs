@@ -5,12 +5,20 @@
 use std::marker::PhantomData;
 
 use maplike::{Get, Insert, Push, Remove, Set};
+#[cfg(feature = "undoredo")]
+use maplike::Container;
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
 use rstared::AsRefRTree;
 use stable_vec::StableVec;
+#[cfg(feature = "undoredo")]
+use std::collections::BTreeMap;
+#[cfg(feature = "undoredo")]
+use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
+#[cfg(feature = "undoredo")]
+use crate::PolygonWithWeight;
 
 use crate::{
     Polygon, PolygonId, Rings,
@@ -181,6 +189,80 @@ where
                 .fold(AABB::new_empty(), |aabb, vertex| {
                     aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
                 }),
+        )
+    }
+}
+
+#[cfg(feature = "undoredo")]
+/// `PolygonSet` that records changes for delta-based Undo/Redo.
+pub type RecordingPolygonSet<K, P = PolygonWithWeight<K>> = PolygonSet<
+    K,
+    P,
+    Recorder<StableVec<P>, BTreeMap<usize, P>>,
+    Recorder<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>,
+>;
+
+#[cfg(feature = "undoredo")]
+/// Half-delta of `PolygonSet`.
+pub type PolygonSetHalfDelta<K, P = PolygonWithWeight<K>> = PolygonSet<
+    K,
+    P,
+    BTreeMap<usize, P>,
+    BTreeMap<GeomWithData<Rectangle<[K; 2]>, PolygonId>, ()>,
+>;
+
+#[cfg(feature = "undoredo")]
+/// Delta of `PolygonSet` for delta-based Undo/Redo.
+pub type PolygonSetDelta<K, P = PolygonWithWeight<K>> = Delta<PolygonSetHalfDelta<K, P>>;
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    P: Clone,
+    PE: Clone + Container<Value = P>,
+    PC: Container<Value = P> + Clone + ApplyDelta<PE>,
+    PRE: Clone + Container,
+    PR: Container + Clone + ApplyDelta<PRE>,
+> ApplyDelta<PolygonSet<K, P, PE, PRE>> for PolygonSet<K, P, PC, PR>
+{
+    fn apply_delta(&mut self, delta: Delta<PolygonSet<K, P, PE, PRE>>) {
+        let (removed, inserted) = delta.dissolve();
+
+        let polygons_delta = Delta::with_removed_inserted(removed.polygons, inserted.polygons);
+        self.polygons.apply_delta(polygons_delta);
+
+        let rtree_delta = Delta::with_removed_inserted(removed.rtree, inserted.rtree);
+        self.rtree.apply_delta(rtree_delta);
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    P: Clone,
+    PE: Clone + Container<Value = P>,
+    PC: Container<Value = P> + FlushDelta<PE>,
+    PRE: Clone + Container,
+    PR: Container + FlushDelta<PRE>,
+> FlushDelta<PolygonSet<K, P, PE, PRE>> for PolygonSet<K, P, PC, PR>
+{
+    fn flush_delta(&mut self) -> Delta<PolygonSet<K, P, PE, PRE>> {
+        let (removed_polygons, inserted_polygons) = self.polygons.flush_delta().dissolve();
+        let (removed_rtree, inserted_rtree) = self.rtree.flush_delta().dissolve();
+
+        Delta::with_removed_inserted(
+            PolygonSet {
+                polygons: removed_polygons,
+                rtree: removed_rtree,
+                scalar_marker: PhantomData,
+                polygon_marker: PhantomData,
+            },
+            PolygonSet {
+                polygons: inserted_polygons,
+                rtree: inserted_rtree,
+                scalar_marker: PhantomData,
+                polygon_marker: PhantomData,
+            },
         )
     }
 }

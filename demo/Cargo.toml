@@ -9,4 +9,5 @@ edition = "2024"
 
 [dependencies]
 macroquad = "0.4"
-polygon_unionfind = { path = ".." }
+polygon_unionfind = { features = ["undoredo"], path = ".." }
+undoredo = "0.9"

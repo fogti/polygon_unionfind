@@ -18,6 +18,8 @@ mod unionfind;
 
 pub use polygon::{Polygon, PolygonId, PolygonWithWeight, Rings};
 pub use polygon_set::PolygonSet;
+#[cfg(feature = "undoredo")]
+pub use polygon_set::{PolygonSetDelta, PolygonSetHalfDelta, RecordingPolygonSet};
 pub use polygon_unionfind::PolygonUnionFind;
 #[cfg(feature = "undoredo")]
 pub use polygon_unionfind::{
