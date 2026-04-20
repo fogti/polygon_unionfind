@@ -4,7 +4,9 @@
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
-use maplike::{Clear, Container, Get, Insert, IntoIter, Push, Remove, Set};
+#[cfg(feature = "undoredo")]
+use maplike::Container;
+use maplike::{Clear, Get, Insert, IntoIter, Push, Remove, Set};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -17,17 +19,17 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 #[cfg(feature = "undoredo")]
 use crate::PolygonWithWeight;
-use crate::Rings;
 use crate::bool_ops::Union;
 use crate::unionfind::UnionFind;
+use crate::{Add, Rings};
 use crate::{Polygon, PolygonId};
 
 #[derive(Clone, Debug)]
 pub struct PolygonUnionFind<
-    K: RTreeNum,
+    K,
     P = Polygon<K>,
-    PC: Container = Vec<P>,
-    PR: Container = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+    PC = Vec<P>,
+    PR = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
     UFPC = Vec<usize>,
     UFRC = Vec<usize>,
 > {
@@ -38,25 +40,7 @@ pub struct PolygonUnionFind<
     polygon_marker: PhantomData<P>,
 }
 
-impl<K: RTreeNum, P, PC: Default + Container, PR: Default + Container, UFPC: Default, UFRC: Default>
-    PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-{
-    /// Create an empty `PolygonUnionFind`.
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            polygons: Default::default(),
-            rtree: Default::default(),
-            unionfind: UnionFind::new(),
-            scalar_marker: PhantomData,
-            polygon_marker: PhantomData,
-        }
-    }
-}
-
-impl<K: RTreeNum, P, PC: Container, PR: Container, UFPC, UFRC>
-    PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-{
+impl<K, P, PC, PR, UFPC, UFRC> PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
     /// Returns a reference to underlying raw polygon collection.
     #[inline]
     pub fn raw_polygons(&self) -> &PC {
@@ -83,6 +67,31 @@ impl<K: RTreeNum, P, PC: Container, PR: Container, UFPC, UFRC>
     }
 }
 
+impl<K, P, PC: Default, PR: Default, UFPC: Default, UFRC: Default>
+    PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    /// Create an empty `PolygonUnionFind`.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K, P, PC: Default, PR: Default, UFPC: Default, UFRC: Default> Default
+    for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    #[inline]
+    fn default() -> Self {
+        Self {
+            polygons: Default::default(),
+            rtree: Default::default(),
+            unionfind: UnionFind::new(),
+            scalar_marker: PhantomData,
+            polygon_marker: PhantomData,
+        }
+    }
+}
+
 impl<
     K: RTreeNum,
     P,
@@ -92,8 +101,6 @@ impl<
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-where
-    K: Copy,
 {
     /// Return unique representative indices for currently merged polygons.
     #[inline]
@@ -133,14 +140,12 @@ impl<
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-where
-    K: Copy,
 {
     /// Insert a polygon and merge it with any neighboring polygon.
     ///
     /// Returns the polygon's new id even if it was immediately absorbed by
     /// another polygon.
-    pub fn insert(&mut self, mut polygon: P) -> PolygonId {
+    pub fn add(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
         let bbox = Self::rectangle_from_polygon(&polygon);
@@ -244,6 +249,22 @@ where
                     aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
                 }),
         )
+    }
+}
+
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+> Add<P> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    fn add(&mut self, polygon: P) -> PolygonId {
+        self.add(polygon)
     }
 }
 

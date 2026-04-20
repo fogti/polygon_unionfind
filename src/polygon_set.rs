@@ -4,9 +4,11 @@
 
 use std::marker::PhantomData;
 
-use maplike::{Get, Insert, Push, Remove, Set};
+#[cfg(feature = "undoredo")]
+use crate::PolygonWithWeight;
 #[cfg(feature = "undoredo")]
 use maplike::Container;
+use maplike::{Get, Insert, Push, Remove, Set};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -17,17 +19,15 @@ use stable_vec::StableVec;
 use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
-#[cfg(feature = "undoredo")]
-use crate::PolygonWithWeight;
 
 use crate::{
-    Polygon, PolygonId, Rings,
+    Add, Polygon, PolygonId, Rings, Subtract,
     bool_ops::{Difference, Union},
 };
 
 #[derive(Clone, Debug)]
 pub struct PolygonSet<
-    K: RTreeNum,
+    K,
     P = Polygon<K>,
     PC = StableVec<P>,
     PR = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
@@ -38,7 +38,27 @@ pub struct PolygonSet<
     polygon_marker: PhantomData<P>,
 }
 
-impl<K: RTreeNum, P, PC: Default, PR: Default> Default for PolygonSet<K, P, PC, PR> {
+impl<K, P, PC, PR> PolygonSet<K, P, PC, PR> {
+    #[inline]
+    pub fn polygons(&self) -> &PC {
+        &self.polygons
+    }
+
+    #[inline]
+    pub fn rtree(&self) -> &PR {
+        &self.rtree
+    }
+}
+
+impl<K, P, PC: Default, PR: Default> PolygonSet<K, P, PC, PR> {
+    /// Create an empty `PolygonSet`.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K, P, PC: Default, PR: Default> Default for PolygonSet<K, P, PC, PR> {
     fn default() -> Self {
         Self {
             polygons: PC::default(),
@@ -49,32 +69,15 @@ impl<K: RTreeNum, P, PC: Default, PR: Default> Default for PolygonSet<K, P, PC, 
     }
 }
 
-impl<K: RTreeNum, P, PC: Default, PR: Default> PolygonSet<K, P, PC, PR> {
-    #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<K, P, PC, PR> PolygonSet<K, P, PC, PR>
-where
+impl<
     K: RTreeNum,
     P: Clone + Rings<K> + Union<P> + Difference<P>,
     PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+> PolygonSet<K, P, PC, PR>
 {
-    #[inline]
-    pub fn polygons(&self) -> &PC {
-        &self.polygons
-    }
-
-    #[inline]
-    pub fn rtree(&self) -> &PR {
-        &self.rtree
-    }
-
     pub fn add(&mut self, polygon: P) -> PolygonId {
         let rectangle = Self::rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
@@ -120,7 +123,31 @@ where
             new_id
         })
     }
+}
 
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+> Add<P> for PolygonSet<K, P, PC, PR>
+{
+    fn add(&mut self, polygon: P) -> PolygonId {
+        self.add(polygon)
+    }
+}
+
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+> PolygonSet<K, P, PC, PR>
+{
     pub fn subtract(&mut self, polygon: P) -> Vec<PolygonId> {
         let rectangle = Self::rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
@@ -162,7 +189,31 @@ where
 
         piece_ids
     }
+}
 
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+> Subtract<P> for PolygonSet<K, P, PC, PR>
+{
+    fn subtract(&mut self, polygon: P) -> Vec<PolygonId> {
+        self.subtract(polygon)
+    }
+}
+
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+> PolygonSet<K, P, PC, PR>
+{
     fn remove_polygon_from_rtree(&mut self, polygon_id: PolygonId) {
         let geom_with_data = self
             .rtree
@@ -204,12 +255,8 @@ pub type RecordingPolygonSet<K, P = PolygonWithWeight<K>> = PolygonSet<
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `PolygonSet`.
-pub type PolygonSetHalfDelta<K, P = PolygonWithWeight<K>> = PolygonSet<
-    K,
-    P,
-    BTreeMap<usize, P>,
-    BTreeMap<GeomWithData<Rectangle<[K; 2]>, PolygonId>, ()>,
->;
+pub type PolygonSetHalfDelta<K, P = PolygonWithWeight<K>> =
+    PolygonSet<K, P, BTreeMap<usize, P>, BTreeMap<GeomWithData<Rectangle<[K; 2]>, PolygonId>, ()>>;
 
 #[cfg(feature = "undoredo")]
 /// Delta of `PolygonSet` for delta-based Undo/Redo.

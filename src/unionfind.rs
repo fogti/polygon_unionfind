@@ -9,7 +9,7 @@ use maplike::{Clear, Get, Push, Set};
 use undoredo::{ApplyDelta, Delta, FlushDelta};
 
 /// Disjoint-set union data structure, widely also known as *union-find*.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct UnionFind<PC = Vec<usize>, RC = PC> {
     /// `parents[i]` is the parent of node `i`.
     parents: PC,

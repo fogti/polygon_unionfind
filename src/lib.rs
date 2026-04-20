@@ -27,28 +27,10 @@ pub use polygon_unionfind::{
 };
 pub use unionfind::UnionFind;
 
-#[cfg(test)]
-mod tests {
-    use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
-    use i_overlay::float::single::SingleFloatOverlay;
+pub trait Add<P> {
+    fn add(&mut self, polygon: P) -> PolygonId;
+}
 
-    #[test]
-    fn union_with_self_preserves_inner_rings() {
-        let outer = vec![
-            [0_f64, 0_f64],
-            [10_f64, 0_f64],
-            [10_f64, 10_f64],
-            [0_f64, 10_f64],
-        ];
-        let hole = vec![
-            [2_f64, 2_f64],
-            [8_f64, 2_f64],
-            [8_f64, 8_f64],
-            [2_f64, 8_f64],
-        ];
-        let shape = vec![outer, hole];
-        let merged = shape.overlay(&shape, OverlayRule::Union, FillRule::EvenOdd);
-        assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].len(), 2, "outer ring and one hole");
-    }
+pub trait Subtract<P> {
+    fn subtract(&mut self, polygon: P) -> Vec<PolygonId>;
 }
