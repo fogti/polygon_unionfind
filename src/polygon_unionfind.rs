@@ -4,9 +4,7 @@
 
 use std::{collections::BTreeSet, marker::PhantomData};
 
-#[cfg(feature = "undoredo")]
-use maplike::Container;
-use maplike::{Clear, Get, Insert, IntoIter, Push, Remove, Set};
+use maplike::{Clear, Container, Get, Insert, IntoIter, Push, Remove, Set};
 use rstar::{
     AABB, Envelope, RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -18,10 +16,10 @@ use std::collections::BTreeMap;
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 #[cfg(feature = "undoredo")]
-use crate::PolygonWithWeight;
+use crate::PolygonWithData;
 use crate::bool_ops::Union;
 use crate::unionfind::UnionFind;
-use crate::{Add, Rings};
+use crate::{Include, Rings};
 use crate::{Polygon, PolygonId};
 
 #[derive(Clone, Debug)]
@@ -38,6 +36,11 @@ pub struct PolygonUnionFind<
     unionfind: UnionFind<UFPC, UFRC>,
     scalar_marker: PhantomData<K>,
     polygon_marker: PhantomData<P>,
+}
+
+impl<K, P, PC, PR, UFPC, UFRC> Container for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
+    type Key = PolygonId;
+    type Value = P;
 }
 
 impl<K, P, PC, PR, UFPC, UFRC> PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
@@ -131,6 +134,39 @@ impl<
 }
 
 impl<
+    K,
+    P,
+    PC: Get<usize, Value = P>,
+    PR,
+    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+> Get<PolygonId> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    fn get(&self, key: &PolygonId) -> Option<&Self::Value> {
+        let representative = self.unionfind.find(key.index());
+        self.polygons.get(&representative)
+    }
+}
+
+impl<
+    K: RTreeNum,
+    P: Clone + Rings<K> + Union<P>,
+    PC: Get<usize, Value = P> + Push<usize> + Set<usize>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
+        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+> Include<P> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    type Output = PolygonId;
+
+    fn include(&mut self, polygon: P) -> PolygonId {
+        self.include(polygon)
+    }
+}
+
+impl<
     K: RTreeNum,
     P: Clone + Rings<K> + Union<P>,
     PC: Get<usize, Value = P> + Push<usize> + Set<usize>,
@@ -145,7 +181,7 @@ impl<
     ///
     /// Returns the polygon's new id even if it was immediately absorbed by
     /// another polygon.
-    pub fn add(&mut self, mut polygon: P) -> PolygonId {
+    pub fn include(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
         let bbox = Self::rectangle_from_polygon(&polygon);
@@ -252,22 +288,6 @@ impl<
     }
 }
 
-impl<
-    K: RTreeNum,
-    P: Clone + Rings<K> + Union<P>,
-    PC: Get<usize, Value = P> + Push<usize> + Set<usize>,
-    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
-        + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
-        + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
-    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-> Add<P> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-{
-    fn add(&mut self, polygon: P) -> PolygonId {
-        self.add(polygon)
-    }
-}
-
 impl<K: RTreeNum, P, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
     PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
 {
@@ -284,7 +304,7 @@ impl<K: RTreeNum, P, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
 
 #[cfg(feature = "undoredo")]
 /// `PolygonUnionFind` that records changes for delta-based Undo/Redo.
-pub type RecordingPolygonUnionFind<K, P = PolygonWithWeight<K>> = PolygonUnionFind<
+pub type RecordingPolygonUnionFind<K, P = PolygonWithData<K>> = PolygonUnionFind<
     K,
     P,
     Recorder<Vec<P>, BTreeMap<usize, P>>,
@@ -295,7 +315,7 @@ pub type RecordingPolygonUnionFind<K, P = PolygonWithWeight<K>> = PolygonUnionFi
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `PolygonUnionFind`.
-pub type PolygonUnionFindHalfDelta<K, P = PolygonWithWeight<K>> = PolygonUnionFind<
+pub type PolygonUnionFindHalfDelta<K, P = PolygonWithData<K>> = PolygonUnionFind<
     K,
     P,
     BTreeMap<usize, P>,
@@ -306,8 +326,7 @@ pub type PolygonUnionFindHalfDelta<K, P = PolygonWithWeight<K>> = PolygonUnionFi
 
 #[cfg(feature = "undoredo")]
 /// Delta of `PolygonUnionFind` for delta-based Undo/Redo.
-pub type PolygonUnionFindDelta<K, P = PolygonWithWeight<K>> =
-    Delta<PolygonUnionFindHalfDelta<K, P>>;
+pub type PolygonUnionFindDelta<K, P = PolygonWithData<K>> = Delta<PolygonUnionFindHalfDelta<K, P>>;
 
 #[cfg(feature = "undoredo")]
 impl<

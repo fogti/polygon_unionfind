@@ -7,7 +7,7 @@
 
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use polygon_unionfind::{PolygonSetDelta, PolygonWithWeight, RecordingPolygonSet};
+use polygon_unionfind::{PolygonSetDelta, PolygonWithData, RecordingPolygonSet};
 use undoredo::UndoRedo;
 
 /// Monotone-chain convex hull; returns vertices in counter-clockwise order.
@@ -67,8 +67,8 @@ fn random_convex_polygon_at_point(center: [i32; 2], radius: i32, count: usize) -
     hull
 }
 
-fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithWeight<i64, ()> {
-    PolygonWithWeight {
+fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithData<i64, ()> {
+    PolygonWithData {
         exterior: ring
             .into_iter()
             .map(|[x, y]| [i64::from(x), i64::from(y)])
@@ -83,7 +83,7 @@ fn random_polygon_at_screen_click(
     zoom: f32,
     mx: f32,
     my: f32,
-) -> PolygonWithWeight<i64, ()> {
+) -> PolygonWithData<i64, ()> {
     let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
     let radius = (60.0 / zoom).max(10.0).round() as i32;
     let count = gen_range(3, 10) as usize;
@@ -98,7 +98,7 @@ fn random_polygon_at_screen_click(
 #[macroquad::main("Polygon Set Viewer")]
 async fn main() {
     let mut undoredo: UndoRedo<PolygonSetDelta<i64>> = UndoRedo::new();
-    let mut polygon_set: RecordingPolygonSet<i64, PolygonWithWeight<i64, ()>> =
+    let mut polygon_set: RecordingPolygonSet<i64, PolygonWithData<i64, ()>> =
         RecordingPolygonSet::new();
 
     let mut zoom = 1.0f32;
@@ -129,10 +129,10 @@ async fn main() {
         } else if redo_clicked {
             undoredo.redo(&mut polygon_set);
         } else if left_pressed {
-            polygon_set.add(random_polygon_at_screen_click(center, zoom, mx, my));
+            polygon_set.include(random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut polygon_set);
         } else if right_pressed {
-            polygon_set.subtract(random_polygon_at_screen_click(center, zoom, mx, my));
+            polygon_set.exclude(random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut polygon_set);
         }
 

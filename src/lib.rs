@@ -11,12 +11,16 @@ extern crate std;
 extern crate alloc;
 
 mod bool_ops;
+mod combinators;
+mod inflate;
 mod polygon;
 mod polygon_set;
 mod polygon_unionfind;
 mod unionfind;
 
-pub use polygon::{Polygon, PolygonId, PolygonWithWeight, Rings};
+pub use combinators::{Inflated, Negated, Paralleled};
+pub use inflate::Inflate;
+pub use polygon::{Polygon, PolygonId, PolygonWithData, Rings};
 pub use polygon_set::PolygonSet;
 #[cfg(feature = "undoredo")]
 pub use polygon_set::{PolygonSetDelta, PolygonSetHalfDelta, RecordingPolygonSet};
@@ -27,10 +31,20 @@ pub use polygon_unionfind::{
 };
 pub use unionfind::UnionFind;
 
-pub trait Add<P> {
-    fn add(&mut self, polygon: P) -> PolygonId;
+pub trait Include<P> {
+    type Output;
+
+    fn include(&mut self, polygon: P) -> Self::Output;
 }
 
-pub trait Subtract<P> {
-    fn subtract(&mut self, polygon: P) -> Vec<PolygonId>;
+pub trait Exclude<P> {
+    type Output;
+
+    fn exclude(&mut self, polygon: P) -> Self::Output;
+}
+
+pub trait Clip<P> {
+    type Output;
+
+    fn clip(&mut self, polygon: P) -> Self::Output;
 }

@@ -12,7 +12,7 @@ use i_overlay::{
     i_shape::int::shape::IntShape,
 };
 
-use crate::{Polygon, PolygonWithWeight, Rings};
+use crate::{Polygon, PolygonWithData, Rings};
 
 pub trait Union<T> {
     fn union(subj: T, clip: T) -> Option<T>;
@@ -194,16 +194,16 @@ macro_rules! impl_overlay_float {
             }
         }
 
-        impl<W> $trait<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+        impl<W> $trait<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn $method(
-                a: PolygonWithWeight<$k, W>,
-                b: PolygonWithWeight<$k, W>,
-            ) -> Option<PolygonWithWeight<$k, W>> {
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Option<PolygonWithData<$k, W>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
                 let result = subj_shape.overlay(&clip_shape, $overlay_rule, FillRule::EvenOdd);
                 let (exterior, interiors) = first_merged_shape(result)?;
-                Some(PolygonWithWeight {
+                Some(PolygonWithData {
                     exterior,
                     interiors,
                     weight: a.weight,
@@ -225,13 +225,13 @@ macro_rules! impl_overlay_int {
             }
         }
 
-        impl<W> $trait<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+        impl<W> $trait<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn $method(
-                a: PolygonWithWeight<$k, W>,
-                b: PolygonWithWeight<$k, W>,
-            ) -> Option<PolygonWithWeight<$k, W>> {
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Option<PolygonWithData<$k, W>> {
                 let (exterior, interiors) = overlay_int_polygons(&a, &b, $overlay_rule)?;
-                Some(PolygonWithWeight {
+                Some(PolygonWithData {
                     exterior,
                     interiors,
                     weight: a.weight,
@@ -241,7 +241,7 @@ macro_rules! impl_overlay_int {
     };
 }
 
-macro_rules! impl_difference_many_float {
+macro_rules! impl_difference_float {
     ($k:ty) => {
         impl Difference<Polygon<$k>> for Polygon<$k> {
             fn difference(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
@@ -259,18 +259,18 @@ macro_rules! impl_difference_many_float {
             }
         }
 
-        impl<W: Clone> Difference<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+        impl<W: Clone> Difference<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn difference(
-                a: PolygonWithWeight<$k, W>,
-                b: PolygonWithWeight<$k, W>,
-            ) -> Vec<PolygonWithWeight<$k, W>> {
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Vec<PolygonWithData<$k, W>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
                 let result =
                     subj_shape.overlay(&clip_shape, OverlayRule::Difference, FillRule::EvenOdd);
                 all_merged_shapes(result)
                     .into_iter()
-                    .map(|(exterior, interiors)| PolygonWithWeight {
+                    .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
                         weight: a.weight.clone(),
@@ -281,7 +281,7 @@ macro_rules! impl_difference_many_float {
     };
 }
 
-macro_rules! impl_difference_many_int {
+macro_rules! impl_difference_int {
     ($k:ty) => {
         impl Difference<Polygon<$k>> for Polygon<$k> {
             fn difference(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
@@ -296,15 +296,15 @@ macro_rules! impl_difference_many_int {
             }
         }
 
-        impl<W: Clone> Difference<PolygonWithWeight<$k, W>> for PolygonWithWeight<$k, W> {
+        impl<W: Clone> Difference<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn difference(
-                a: PolygonWithWeight<$k, W>,
-                b: PolygonWithWeight<$k, W>,
-            ) -> Vec<PolygonWithWeight<$k, W>> {
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Vec<PolygonWithData<$k, W>> {
                 overlay_int_polygons_many(&a, &b, OverlayRule::Difference)
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|(exterior, interiors)| PolygonWithWeight {
+                    .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
                         weight: a.weight.clone(),
@@ -329,9 +329,9 @@ impl_overlay_int!(i16, Intersect, intersect, OverlayRule::Intersect);
 impl_overlay_int!(i32, Intersect, intersect, OverlayRule::Intersect);
 impl_overlay_int!(i64, Intersect, intersect, OverlayRule::Intersect);
 
-impl_difference_many_float!(f32);
-impl_difference_many_float!(f64);
-impl_difference_many_int!(i8);
-impl_difference_many_int!(i16);
-impl_difference_many_int!(i32);
-impl_difference_many_int!(i64);
+impl_difference_float!(f32);
+impl_difference_float!(f64);
+impl_difference_int!(i8);
+impl_difference_int!(i16);
+impl_difference_int!(i32);
+impl_difference_int!(i64);
