@@ -161,26 +161,32 @@ impl<S> Paralleled<S> {
 }
 
 impl<P: Clone, S: Include<P>> Include<P> for Paralleled<S> {
-    type Output = S::Output;
+    type Output = (S::Output, Vec<S::Output>);
 
-    fn include(&mut self, polygon: P) -> S::Output {
+    fn include(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
+        let mut parallel_outputs = Vec::with_capacity(self.parallels.len());
+
         for parallel in &mut self.parallels {
-            parallel.include(polygon.clone());
+            parallel_outputs.push(parallel.include(polygon.clone()));
         }
 
-        self.primary.include(polygon)
+        let primary_output = self.primary.include(polygon);
+        (primary_output, parallel_outputs)
     }
 }
 
 impl<P: Clone, S: Exclude<P>> Exclude<P> for Paralleled<S> {
-    type Output = S::Output;
+    type Output = (S::Output, Vec<S::Output>);
 
-    fn exclude(&mut self, polygon: P) -> S::Output {
+    fn exclude(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
+        let mut parallel_outputs = Vec::with_capacity(self.parallels.len());
+
         for parallel in &mut self.parallels {
-            parallel.exclude(polygon.clone());
+            parallel_outputs.push(parallel.exclude(polygon.clone()));
         }
 
-        self.primary.exclude(polygon)
+        let primary_output = self.primary.exclude(polygon);
+        (primary_output, parallel_outputs)
     }
 }
 
