@@ -13,6 +13,7 @@ extern crate alloc;
 mod bool_ops;
 mod combinators;
 mod inflate;
+mod layers_with_transitions;
 mod polygon;
 mod polygon_set;
 mod polygon_unionfind;
@@ -20,6 +21,7 @@ mod unionfind;
 
 pub use combinators::{Inflated, Negated, Paralleled};
 pub use inflate::Inflate;
+pub use layers_with_transitions::LayersWithTransitions;
 pub use polygon::{Polygon, PolygonId, PolygonWithData, Rings};
 pub use polygon_set::PolygonSet;
 #[cfg(feature = "undoredo")]

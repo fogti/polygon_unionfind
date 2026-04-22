@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::{iter::Map, slice::Iter};
+use rstar::{AABB, Envelope, RTreeNum, primitives::Rectangle};
 
 pub trait Rings<K> {
     type RingIter<'a>: Iterator<Item = &'a [[K; 2]]>
@@ -12,6 +13,17 @@ pub trait Rings<K> {
 
     fn exterior(&self) -> &[[K; 2]];
     fn interiors<'a>(&'a self) -> Self::RingIter<'a>;
+}
+
+pub(crate) fn rectangle_from_polygon<K: RTreeNum, P: Rings<K>>(polygon: &P) -> Rectangle<[K; 2]> {
+    Rectangle::from_aabb(
+        polygon
+            .exterior()
+            .iter()
+            .fold(AABB::new_empty(), |aabb, vertex| {
+                aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
+            }),
+    )
 }
 
 /// An index pointing to a polygon.

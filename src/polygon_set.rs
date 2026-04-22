@@ -10,7 +10,7 @@ use crate::PolygonWithData;
 use maplike::Container;
 use maplike::{Get, Insert, Push, Remove, Set};
 use rstar::{
-    AABB, Envelope, RTree, RTreeNum, RTreeObject,
+    RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
 use rstared::AsRefRTree;
@@ -22,6 +22,7 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 use crate::{
     Clip, Exclude, Include, Polygon, PolygonId, Rings,
+    polygon::rectangle_from_polygon,
     bool_ops::{Difference, Intersect, Union},
 };
 
@@ -96,7 +97,7 @@ impl<
 > PolygonSet<K, P, PC, PR>
 {
     pub fn include(&mut self, polygon: P) -> PolygonId {
-        let rectangle = Self::rectangle_from_polygon(&polygon);
+        let rectangle = rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
             .rtree
             .as_ref()
@@ -132,7 +133,7 @@ impl<
         maybe_absorber_id.unwrap_or_else(|| {
             let new_id = PolygonId::new(self.polygons.push(polygon));
             let new_polygon = self.polygons.get(&new_id.index()).unwrap().clone();
-            let new_bbox = Self::rectangle_from_polygon(&new_polygon);
+            let new_bbox = rectangle_from_polygon(&new_polygon);
 
             self.rtree
                 .insert(GeomWithData::new(new_bbox.clone(), new_id), ());
@@ -151,9 +152,9 @@ impl<
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
 > Exclude<P> for PolygonSet<K, P, PC, PR>
 {
-    type Output = Vec<PolygonId>;
+    type Output = (Vec<PolygonId>, Vec<P>);
 
-    fn exclude(&mut self, polygon: P) -> Vec<PolygonId> {
+    fn exclude(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
         self.exclude(polygon)
     }
 }
@@ -167,8 +168,8 @@ impl<
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
 > PolygonSet<K, P, PC, PR>
 {
-    pub fn exclude(&mut self, polygon: P) -> Vec<PolygonId> {
-        let rectangle = Self::rectangle_from_polygon(&polygon);
+    pub fn exclude(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
+        let rectangle = rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
             .rtree
             .as_ref()
@@ -177,12 +178,14 @@ impl<
             .collect();
 
         let mut piece_ids = Vec::new();
+        let mut removed_polygons = Vec::new();
 
         for neighbor_id in neighbor_ids {
             let neighbor = self.polygons.get(&neighbor_id.index()).unwrap();
             let difference = P::difference(neighbor.clone(), polygon.clone());
 
             if difference.is_empty() {
+                removed_polygons.push(neighbor.clone());
                 self.remove_polygon_from_rtree(neighbor_id);
                 self.polygons.remove(&neighbor_id.index());
             } else {
@@ -196,7 +199,7 @@ impl<
                 piece_ids.push(neighbor_id);
 
                 for piece in difference.into_iter().skip(1) {
-                    let piece_bbox = Self::rectangle_from_polygon(&piece);
+                    let piece_bbox = rectangle_from_polygon(&piece);
                     let piece_id = PolygonId::new(self.polygons.push(piece));
 
                     self.rtree
@@ -206,8 +209,9 @@ impl<
             }
         }
 
-        piece_ids
+        (piece_ids, removed_polygons)
     }
+
 }
 
 impl<
@@ -236,7 +240,7 @@ impl<
 > PolygonSet<K, P, PC, PR>
 {
     pub fn clip(&mut self, polygon: P) -> Vec<PolygonId> {
-        let rectangle = Self::rectangle_from_polygon(&polygon);
+        let rectangle = rectangle_from_polygon(&polygon);
         let clipped_ids: Vec<PolygonId> = self
             .rtree
             .as_ref()
@@ -275,7 +279,7 @@ impl<
             piece_ids.push(polygon_id);
 
             for piece in intersections.into_iter().skip(1) {
-                let piece_bbox = Self::rectangle_from_polygon(&piece);
+                let piece_bbox = rectangle_from_polygon(&piece);
                 let piece_id = PolygonId::new(self.polygons.push(piece));
                 self.rtree
                     .insert(GeomWithData::new(piece_bbox, piece_id), ());
@@ -310,19 +314,8 @@ impl<
 
     fn reinsert_polygon_in_rtree(&mut self, polygon_id: PolygonId, polygon: &P) {
         self.remove_polygon_from_rtree(polygon_id);
-        let rect = Self::rectangle_from_polygon(polygon);
+        let rect = rectangle_from_polygon(polygon);
         self.rtree.insert(GeomWithData::new(rect, polygon_id), ());
-    }
-
-    fn rectangle_from_polygon(polygon: &P) -> Rectangle<[K; 2]> {
-        Rectangle::from_aabb(
-            polygon
-                .exterior()
-                .iter()
-                .fold(AABB::new_empty(), |aabb, vertex| {
-                    aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
-                }),
-        )
     }
 }
 

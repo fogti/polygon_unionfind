@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, marker::PhantomData};
 
 use maplike::{Clear, Container, Get, Insert, IntoIter, Push, Remove, Set};
 use rstar::{
-    AABB, Envelope, RTree, RTreeNum, RTreeObject,
+    RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
 use rstared::AsRefRTree;
@@ -18,6 +18,7 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 #[cfg(feature = "undoredo")]
 use crate::PolygonWithData;
 use crate::bool_ops::Union;
+use crate::polygon::rectangle_from_polygon;
 use crate::unionfind::UnionFind;
 use crate::{Include, Rings};
 use crate::{Polygon, PolygonId};
@@ -142,6 +143,7 @@ impl<
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
 > Get<PolygonId> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
 {
+    #[inline]
     fn get(&self, key: &PolygonId) -> Option<&Self::Value> {
         let representative = self.unionfind.find(key.index());
         self.polygons.get(&representative)
@@ -184,7 +186,7 @@ impl<
     pub fn include(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
-        let bbox = Self::rectangle_from_polygon(&polygon);
+        let bbox = rectangle_from_polygon(&polygon);
         self.rtree.insert(
             GeomWithData::new(bbox.clone(), PolygonId::new(new_polygon_index)),
             (),
@@ -193,35 +195,35 @@ impl<
         let id = self.polygons.push(polygon.clone());
         debug_assert_eq!(new_polygon_index, id);
 
-        let neighbor_ids: Vec<PolygonId> = self
+        let located_ids: Vec<PolygonId> = self
             .rtree
             .as_ref()
             .locate_in_envelope_intersecting(&bbox.envelope())
             .map(|neighbor| neighbor.data)
             .collect();
 
-        for neighbor_id in neighbor_ids {
-            let neighbor_representative = self.unionfind.find_compress(neighbor_id.index());
-            let root_of_inserted = self.unionfind.find_compress(new_polygon_index);
+        for located_id in located_ids {
+            let located_representative = self.unionfind.find_compress(located_id.index());
+            let root_of_new = self.unionfind.find_compress(new_polygon_index);
 
-            if neighbor_representative == root_of_inserted {
+            if located_representative == root_of_new {
                 continue;
             }
 
-            let neighbor = self.polygons.get(&neighbor_representative).unwrap().clone();
+            let neighbor = self.polygons.get(&located_representative).unwrap().clone();
             let Some(merged) = P::union(polygon.clone(), neighbor) else {
                 continue;
             };
 
-            let root_of_neighbor = neighbor_representative;
-            self.unionfind.union(root_of_neighbor, root_of_inserted);
+            let root_of_neighbor = located_representative;
+            self.unionfind.union(root_of_neighbor, root_of_new);
 
             let representative = self.unionfind.find_compress(new_polygon_index);
             polygon = merged;
             self.polygons.set(representative, polygon.clone());
 
             let absorbed = if representative == root_of_neighbor {
-                root_of_inserted
+                root_of_new
             } else {
                 root_of_neighbor
             };
@@ -251,7 +253,7 @@ impl<
 
     fn reinsert_polygon_in_rtree(&mut self, polygon_id: PolygonId, polygon: &P) {
         self.remove_polygon_from_rtree(polygon_id);
-        let bbox = Self::rectangle_from_polygon(polygon);
+        let bbox = rectangle_from_polygon(polygon);
         self.rtree.insert(GeomWithData::new(bbox, polygon_id), ());
     }
 
@@ -274,17 +276,6 @@ impl<
         self.polygons
             .get(&self.unionfind.find_compress(index))
             .unwrap()
-    }
-
-    fn rectangle_from_polygon(polygon: &P) -> Rectangle<[K; 2]> {
-        Rectangle::from_aabb(
-            polygon
-                .exterior()
-                .iter()
-                .fold(AABB::new_empty(), |aabb, vertex| {
-                    aabb.merged(&AABB::from_point([vertex[0], vertex[1]]))
-                }),
-        )
     }
 }
 

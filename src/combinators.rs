@@ -46,12 +46,12 @@ impl<K: Clone, P: Clone + Inflate<K>, S: Include<P, Output = PolygonId>> Include
     }
 }
 
-impl<K: Clone, P: Clone + Inflate<K>, S: Exclude<P, Output = Vec<PolygonId>>> Exclude<P>
+impl<K: Clone, P: Clone + Inflate<K>, S: Exclude<P>> Exclude<P>
     for Inflated<S, K>
 {
-    type Output = Vec<PolygonId>;
+    type Output = S::Output;
 
-    fn exclude(&mut self, polygon: P) -> Vec<PolygonId> {
+    fn exclude(&mut self, polygon: P) -> S::Output {
         self.inflatee.exclude(polygon.inflate(self.offset.clone()))
     }
 }
@@ -62,6 +62,7 @@ impl<I: Container, K> Container for Inflated<I, K> {
 }
 
 impl<I: Get<K2>, K, K2> Get<K2> for Inflated<I, K> {
+    #[inline]
     fn get(&self, key: &K2) -> Option<&Self::Value> {
         self.inflatee.get(key)
     }
@@ -105,29 +106,13 @@ impl<M: Default, S: Default> Default for Negated<M, S> {
 
 impl<
     P: Clone,
-    M: Exclude<P, Output = Vec<PolygonId>>,
+    M: Exclude<P, Output = (Vec<PolygonId>, Vec<P>)>,
     S: Include<P, Output = PolygonId> + Get<PolygonId, Value = P>,
 > Include<P> for Negated<M, S>
 {
-    type Output = Vec<PolygonId>;
+    type Output = (Vec<PolygonId>, Vec<P>);
 
-    fn include(&mut self, polygon: P) -> Vec<PolygonId> {
-        let id = self.subtrahend.include(polygon.clone());
-
-        self.minuend
-            .exclude(self.subtrahend.get(&id).unwrap().clone())
-    }
-}
-
-impl<
-    P: Clone,
-    M: Exclude<P, Output = Vec<PolygonId>>,
-    S: Include<P, Output = PolygonId> + Get<PolygonId, Value = P>,
-> Exclude<P> for Negated<M, S>
-{
-    type Output = Vec<PolygonId>;
-
-    fn exclude(&mut self, polygon: P) -> Vec<PolygonId> {
+    fn include(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
         let id = self.subtrahend.include(polygon.clone());
 
         self.minuend
