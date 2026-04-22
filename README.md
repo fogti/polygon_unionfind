@@ -21,12 +21,16 @@ deltas or snapshots.
 ## Demo
 
 For an interactive visualization of `polygon_unionfind`'s merging and undo-redo
-action, you can run our graphical demo implemented using the cross-platform
+action, you can run our graphical demos implemented using the cross-platform
 [`macroquad`](https://crates.io/crates/macroquad) crate by running the following
-command:
+commands:
 
 ```sh
-cargo run --manifest-path=demo/Cargo.toml
+cargo run --manifest-path=demos/polygon_set/Cargo.toml
+```
+
+```sh
+cargo run --manifest-path=demos/combinators/Cargo.toml
 ```
 
 ## Usage

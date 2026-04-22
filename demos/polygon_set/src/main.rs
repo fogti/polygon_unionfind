@@ -122,7 +122,8 @@ async fn main() {
         let undo_clicked = left_pressed && undo_button.contains(mouse);
         let redo_clicked = left_pressed && redo_button.contains(mouse);
 
-        let center = vec2(screen_width() * 0.5, screen_height() * 0.5) + offset;
+        let screen_center = vec2(screen_width() * 0.5, screen_height() * 0.5);
+        let mut center = screen_center + offset;
 
         if undo_clicked {
             undoredo.undo(&mut polygon_set);
@@ -138,8 +139,11 @@ async fn main() {
 
         let (_, scroll_y) = mouse_wheel();
         if scroll_y != 0.0 {
-            zoom *= 1.0 + scroll_y * 0.1;
-            zoom = zoom.clamp(0.1, 20.0);
+            let old_zoom = zoom;
+            let world_before = vec2((mx - center.x) / old_zoom, -(my - center.y) / old_zoom);
+            zoom = (old_zoom * (1.0 + scroll_y * 0.1)).clamp(0.1, 20.0);
+            let new_center = vec2(mx - world_before.x * zoom, my + world_before.y * zoom);
+            offset = new_center - screen_center;
         }
 
         if is_mouse_button_down(MouseButton::Middle) {
@@ -152,6 +156,7 @@ async fn main() {
         } else {
             last_mouse_pos = None;
         }
+        center = screen_center + offset;
 
         clear_background(BLACK);
 

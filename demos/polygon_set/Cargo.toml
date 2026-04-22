@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 [package]
-name = "demo"
+name = "polygon_set_demo"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 macroquad = "0.4"
-polygon_unionfind = { features = ["undoredo"], path = ".." }
+polygon_unionfind = { features = ["undoredo"], path = "../.." }
 undoredo = "0.9"

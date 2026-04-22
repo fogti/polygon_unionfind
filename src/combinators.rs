@@ -61,8 +61,8 @@ impl<I: Container, K> Container for Inflated<I, K> {
     type Value = I::Value;
 }
 
-impl<Key, I: Get<Key>, K> Get<Key> for Inflated<I, K> {
-    fn get(&self, key: &Key) -> Option<&Self::Value> {
+impl<I: Get<K2>, K, K2> Get<K2> for Inflated<I, K> {
+    fn get(&self, key: &K2) -> Option<&Self::Value> {
         self.inflatee.get(key)
     }
 }
@@ -132,17 +132,6 @@ impl<
 
         self.minuend
             .exclude(self.subtrahend.get(&id).unwrap().clone())
-    }
-}
-
-impl<M: Container, S> Container for Negated<M, S> {
-    type Key = M::Key;
-    type Value = M::Value;
-}
-
-impl<Key, M: Get<Key>, S> Get<Key> for Negated<M, S> {
-    fn get(&self, key: &Key) -> Option<&Self::Value> {
-        self.minuend.get(key)
     }
 }
 
