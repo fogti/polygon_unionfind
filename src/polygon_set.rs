@@ -261,13 +261,25 @@ impl<
 
         for polygon_id in clipped_ids {
             let current = self.polygons.get(&polygon_id.index()).unwrap().clone();
-            if let Some(intersection) = P::intersect(current, polygon.clone()) {
-                self.polygons.set(polygon_id.index(), intersection.clone());
-                self.reinsert_polygon_in_rtree(polygon_id, &intersection);
-                piece_ids.push(polygon_id);
-            } else {
+            let intersections = P::intersect(current, polygon.clone());
+
+            if intersections.is_empty() {
                 self.remove_polygon_from_rtree(polygon_id);
                 self.polygons.remove(&polygon_id.index());
+                continue;
+            }
+
+            self.polygons
+                .set(polygon_id.index(), intersections[0].clone());
+            self.reinsert_polygon_in_rtree(polygon_id, &intersections[0]);
+            piece_ids.push(polygon_id);
+
+            for piece in intersections.into_iter().skip(1) {
+                let piece_bbox = Self::rectangle_from_polygon(&piece);
+                let piece_id = PolygonId::new(self.polygons.push(piece));
+                self.rtree
+                    .insert(GeomWithData::new(piece_bbox, piece_id), ());
+                piece_ids.push(piece_id);
             }
         }
 

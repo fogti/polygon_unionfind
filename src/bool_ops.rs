@@ -19,7 +19,7 @@ pub trait Union<T> {
 }
 
 pub trait Intersect<T> {
-    fn intersect(subj: T, clip: T) -> Option<T>;
+    fn intersect(subj: T, clip: T) -> Vec<T>;
 }
 
 pub trait Difference<T> {
@@ -179,13 +179,13 @@ where
         .collect()
 }
 
-macro_rules! impl_overlay_float {
-    ($k:ty, $trait:ident, $method:ident, $overlay_rule:expr) => {
-        impl $trait<Polygon<$k>> for Polygon<$k> {
-            fn $method(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
+macro_rules! impl_union_float {
+    ($k:ty) => {
+        impl Union<Polygon<$k>> for Polygon<$k> {
+            fn union(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let result = subj_shape.overlay(&clip_shape, $overlay_rule, FillRule::EvenOdd);
+                let result = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
                 let (exterior, interiors) = first_merged_shape(result)?;
                 Some(Polygon {
                     exterior,
@@ -194,14 +194,14 @@ macro_rules! impl_overlay_float {
             }
         }
 
-        impl<W> $trait<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
-            fn $method(
+        impl<W> Union<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+            fn union(
                 a: PolygonWithData<$k, W>,
                 b: PolygonWithData<$k, W>,
             ) -> Option<PolygonWithData<$k, W>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let result = subj_shape.overlay(&clip_shape, $overlay_rule, FillRule::EvenOdd);
+                let result = subj_shape.overlay(&clip_shape, OverlayRule::Union, FillRule::EvenOdd);
                 let (exterior, interiors) = first_merged_shape(result)?;
                 Some(PolygonWithData {
                     exterior,
@@ -213,11 +213,11 @@ macro_rules! impl_overlay_float {
     };
 }
 
-macro_rules! impl_overlay_int {
-    ($k:ty, $trait:ident, $method:ident, $overlay_rule:expr) => {
-        impl $trait<Polygon<$k>> for Polygon<$k> {
-            fn $method(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
-                let (exterior, interiors) = overlay_int_polygons(&a, &b, $overlay_rule)?;
+macro_rules! impl_union_int {
+    ($k:ty) => {
+        impl Union<Polygon<$k>> for Polygon<$k> {
+            fn union(a: Polygon<$k>, b: Polygon<$k>) -> Option<Polygon<$k>> {
+                let (exterior, interiors) = overlay_int_polygons(&a, &b, OverlayRule::Union)?;
                 Some(Polygon {
                     exterior,
                     interiors,
@@ -225,17 +225,89 @@ macro_rules! impl_overlay_int {
             }
         }
 
-        impl<W> $trait<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
-            fn $method(
+        impl<W> Union<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+            fn union(
                 a: PolygonWithData<$k, W>,
                 b: PolygonWithData<$k, W>,
             ) -> Option<PolygonWithData<$k, W>> {
-                let (exterior, interiors) = overlay_int_polygons(&a, &b, $overlay_rule)?;
+                let (exterior, interiors) = overlay_int_polygons(&a, &b, OverlayRule::Union)?;
                 Some(PolygonWithData {
                     exterior,
                     interiors,
                     weight: a.weight,
                 })
+            }
+        }
+    };
+}
+
+macro_rules! impl_intersect_float {
+    ($k:ty) => {
+        impl Intersect<Polygon<$k>> for Polygon<$k> {
+            fn intersect(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
+                let subj_shape = rings_to_shape(&a);
+                let clip_shape = rings_to_shape(&b);
+                let result = subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
+                all_merged_shapes(result)
+                    .into_iter()
+                    .map(|(exterior, interiors)| Polygon {
+                        exterior,
+                        interiors,
+                    })
+                    .collect()
+            }
+        }
+
+        impl<W: Clone> Intersect<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+            fn intersect(
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Vec<PolygonWithData<$k, W>> {
+                let subj_shape = rings_to_shape(&a);
+                let clip_shape = rings_to_shape(&b);
+                let result = subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
+                all_merged_shapes(result)
+                    .into_iter()
+                    .map(|(exterior, interiors)| PolygonWithData {
+                        exterior,
+                        interiors,
+                        weight: a.weight.clone(),
+                    })
+                    .collect()
+            }
+        }
+    };
+}
+
+macro_rules! impl_intersect_int {
+    ($k:ty) => {
+        impl Intersect<Polygon<$k>> for Polygon<$k> {
+            fn intersect(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
+                overlay_int_polygons_many(&a, &b, OverlayRule::Intersect)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(exterior, interiors)| Polygon {
+                        exterior,
+                        interiors,
+                    })
+                    .collect()
+            }
+        }
+
+        impl<W: Clone> Intersect<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+            fn intersect(
+                a: PolygonWithData<$k, W>,
+                b: PolygonWithData<$k, W>,
+            ) -> Vec<PolygonWithData<$k, W>> {
+                overlay_int_polygons_many(&a, &b, OverlayRule::Intersect)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(exterior, interiors)| PolygonWithData {
+                        exterior,
+                        interiors,
+                        weight: a.weight.clone(),
+                    })
+                    .collect()
             }
         }
     };
@@ -315,19 +387,19 @@ macro_rules! impl_difference_int {
     };
 }
 
-impl_overlay_float!(f32, Union, union, OverlayRule::Union);
-impl_overlay_float!(f64, Union, union, OverlayRule::Union);
-impl_overlay_int!(i8, Union, union, OverlayRule::Union);
-impl_overlay_int!(i16, Union, union, OverlayRule::Union);
-impl_overlay_int!(i32, Union, union, OverlayRule::Union);
-impl_overlay_int!(i64, Union, union, OverlayRule::Union);
+impl_union_float!(f32);
+impl_union_float!(f64);
+impl_union_int!(i8);
+impl_union_int!(i16);
+impl_union_int!(i32);
+impl_union_int!(i64);
 
-impl_overlay_float!(f32, Intersect, intersect, OverlayRule::Intersect);
-impl_overlay_float!(f64, Intersect, intersect, OverlayRule::Intersect);
-impl_overlay_int!(i8, Intersect, intersect, OverlayRule::Intersect);
-impl_overlay_int!(i16, Intersect, intersect, OverlayRule::Intersect);
-impl_overlay_int!(i32, Intersect, intersect, OverlayRule::Intersect);
-impl_overlay_int!(i64, Intersect, intersect, OverlayRule::Intersect);
+impl_intersect_float!(f32);
+impl_intersect_float!(f64);
+impl_intersect_int!(i8);
+impl_intersect_int!(i16);
+impl_intersect_int!(i32);
+impl_intersect_int!(i64);
 
 impl_difference_float!(f32);
 impl_difference_float!(f64);
