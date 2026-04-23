@@ -20,7 +20,7 @@ use crate::PolygonWithData;
 use crate::bool_ops::Union;
 use crate::polygon::rectangle_from_polygon;
 use crate::unionfind::UnionFind;
-use crate::{Include, Rings};
+use crate::{Add, Rings};
 use crate::{Polygon, PolygonId};
 
 #[derive(Clone, Debug)]
@@ -159,12 +159,12 @@ impl<
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
     UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
     UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-> Include<P> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+> Add<P> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
 {
     type Output = PolygonId;
 
-    fn include(&mut self, polygon: P) -> PolygonId {
-        self.include(polygon)
+    fn add(&mut self, polygon: P) -> PolygonId {
+        self.add(polygon)
     }
 }
 
@@ -183,7 +183,7 @@ impl<
     ///
     /// Returns the polygon's new id even if it was immediately absorbed by
     /// another polygon.
-    pub fn include(&mut self, mut polygon: P) -> PolygonId {
+    pub fn add(&mut self, mut polygon: P) -> PolygonId {
         let new_polygon_index = self.unionfind.new_set();
 
         let bbox = rectangle_from_polygon(&polygon);

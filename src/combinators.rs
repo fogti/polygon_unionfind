@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 use maplike::{Container, Get};
 
-use crate::{Clip, Exclude, Include, Inflate, PolygonId};
+use crate::{Add, Clip, Inflate, PolygonId, Sub};
 
 #[derive(Clone, Debug)]
 pub struct Inflated<I, K> {
@@ -36,23 +36,23 @@ impl<I: Default, K> Inflated<I, K> {
     }
 }
 
-impl<K: Clone, P: Clone + Inflate<K>, S: Include<P, Output = PolygonId>> Include<P>
+impl<K: Clone, P: Clone + Inflate<K>, S: Add<P, Output = PolygonId>> Add<P>
     for Inflated<S, K>
 {
     type Output = PolygonId;
 
-    fn include(&mut self, polygon: P) -> PolygonId {
-        self.inflatee.include(polygon.inflate(self.offset.clone()))
+    fn add(&mut self, polygon: P) -> PolygonId {
+        self.inflatee.add(polygon.inflate(self.offset.clone()))
     }
 }
 
-impl<K: Clone, P: Clone + Inflate<K>, S: Exclude<P>> Exclude<P>
+impl<K: Clone, P: Clone + Inflate<K>, S: Sub<P>> Sub<P>
     for Inflated<S, K>
 {
     type Output = S::Output;
 
-    fn exclude(&mut self, polygon: P) -> S::Output {
-        self.inflatee.exclude(polygon.inflate(self.offset.clone()))
+    fn sub(&mut self, polygon: P) -> S::Output {
+        self.inflatee.sub(polygon.inflate(self.offset.clone()))
     }
 }
 
@@ -106,17 +106,17 @@ impl<M: Default, S: Default> Default for Negated<M, S> {
 
 impl<
     P: Clone,
-    M: Exclude<P, Output = (Vec<PolygonId>, Vec<P>)>,
-    S: Include<P, Output = PolygonId> + Get<PolygonId, Value = P>,
-> Include<P> for Negated<M, S>
+    M: Sub<P, Output = (Vec<PolygonId>, Vec<P>)>,
+    S: Add<P, Output = PolygonId> + Get<PolygonId, Value = P>,
+> Add<P> for Negated<M, S>
 {
     type Output = (Vec<PolygonId>, Vec<P>);
 
-    fn include(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
-        let id = self.subtrahend.include(polygon.clone());
+    fn add(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
+        let id = self.subtrahend.add(polygon.clone());
 
         self.minuend
-            .exclude(self.subtrahend.get(&id).unwrap().clone())
+            .sub(self.subtrahend.get(&id).unwrap().clone())
     }
 }
 
@@ -145,32 +145,32 @@ impl<S> Paralleled<S> {
     }
 }
 
-impl<P: Clone, S: Include<P>> Include<P> for Paralleled<S> {
+impl<P: Clone, S: Add<P>> Add<P> for Paralleled<S> {
     type Output = (S::Output, Vec<S::Output>);
 
-    fn include(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
+    fn add(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
         let mut parallel_outputs = Vec::with_capacity(self.parallels.len());
 
         for parallel in &mut self.parallels {
-            parallel_outputs.push(parallel.include(polygon.clone()));
+            parallel_outputs.push(parallel.add(polygon.clone()));
         }
 
-        let primary_output = self.primary.include(polygon);
+        let primary_output = self.primary.add(polygon);
         (primary_output, parallel_outputs)
     }
 }
 
-impl<P: Clone, S: Exclude<P>> Exclude<P> for Paralleled<S> {
+impl<P: Clone, S: Sub<P>> Sub<P> for Paralleled<S> {
     type Output = (S::Output, Vec<S::Output>);
 
-    fn exclude(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
+    fn sub(&mut self, polygon: P) -> (S::Output, Vec<S::Output>) {
         let mut parallel_outputs = Vec::with_capacity(self.parallels.len());
 
         for parallel in &mut self.parallels {
-            parallel_outputs.push(parallel.exclude(polygon.clone()));
+            parallel_outputs.push(parallel.sub(polygon.clone()));
         }
 
-        let primary_output = self.primary.exclude(polygon);
+        let primary_output = self.primary.sub(polygon);
         (primary_output, parallel_outputs)
     }
 }

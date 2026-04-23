@@ -33,16 +33,16 @@ pub use polygon_unionfind::{
 };
 pub use unionfind::UnionFind;
 
-pub trait Include<P> {
+pub trait Add<P> {
     type Output;
 
-    fn include(&mut self, polygon: P) -> Self::Output;
+    fn add(&mut self, polygon: P) -> Self::Output;
 }
 
-pub trait Exclude<P> {
+pub trait Sub<P> {
     type Output;
 
-    fn exclude(&mut self, polygon: P) -> Self::Output;
+    fn sub(&mut self, polygon: P) -> Self::Output;
 }
 
 pub trait Clip<P> {

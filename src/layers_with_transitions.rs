@@ -10,7 +10,7 @@ use rstar::RTreeObject;
 
 use crate::bool_ops::{Difference, Intersect, Union};
 use crate::{
-    Exclude, Include, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet,
+    Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, Sub,
     PolygonUnionFind, PolygonWithData, Rings, polygon::rectangle_from_polygon,
 };
 
@@ -66,14 +66,14 @@ where
     K: RTreeNum + Ord,
     P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersect<P>,
 {
-    pub fn include_into_layer(&mut self, layer_index: usize, polygon: P) {
+    pub fn add_into_layer(&mut self, layer_index: usize, polygon: P) {
         if layer_index >= self.layers.len() {
             return;
         }
 
         let (clipping_polygons, removed_polygons) = {
             let layer = self.layers.get_mut(layer_index).unwrap();
-            let (inner_outputs, _outer_parallel_outputs) = layer.include(polygon);
+            let (inner_outputs, _outer_parallel_outputs) = layer.add(polygon);
             let (inner_primary_output, inner_parallel_outputs) = inner_outputs;
             let (parallel_ids, removed_polygons) = inner_parallel_outputs
                 .first()
@@ -119,7 +119,7 @@ where
         let transition = &mut self.transitions[transition_index];
 
         for removed in removed_polygons {
-            let _ = transition.exclude(removed.clone());
+            let _ = transition.sub(removed.clone());
         }
     }
 
@@ -158,7 +158,7 @@ where
             for clipping_polygon in &clipping_polygons {
                 for piece in P::intersect(transpolygon.clone(), clipping_polygon.clone()) {
                     has_intersection = true;
-                    clipped_union.include(piece);
+                    clipped_union.add(piece);
                 }
             }
 
@@ -168,10 +168,10 @@ where
                 continue;
             }
 
-            transition.exclude(transpolygon);
+            transition.sub(transpolygon);
 
             for (_idx, piece) in clipped_union.polygons().iter() {
-                transition.include(piece.clone());
+                transition.add(piece.clone());
             }
         }
     }

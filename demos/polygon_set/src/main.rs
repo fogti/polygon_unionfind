@@ -130,10 +130,10 @@ async fn main() {
         } else if redo_clicked {
             undoredo.redo(&mut polygon_set);
         } else if left_pressed {
-            polygon_set.include(random_polygon_at_screen_click(center, zoom, mx, my));
+            polygon_set.add(random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut polygon_set);
         } else if right_pressed {
-            polygon_set.exclude(random_polygon_at_screen_click(center, zoom, mx, my));
+            polygon_set.sub(random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut polygon_set);
         }
 

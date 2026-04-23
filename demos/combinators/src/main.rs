@@ -7,7 +7,7 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{
-    Include, Inflated, Negated, Paralleled, PolygonSet, PolygonUnionFind, PolygonWithData,
+    Add, Inflated, Negated, Paralleled, PolygonSet, PolygonUnionFind, PolygonWithData,
 };
 
 type DemoPolygon = PolygonWithData<i64, ()>;
@@ -23,7 +23,7 @@ impl Layers {
     fn new() -> Self {
         let new_layer = |offset| {
             let mut minuend: PolygonSet<i64, DemoPolygon> = PolygonSet::new();
-            minuend.include(DemoPolygon {
+            minuend.add(DemoPolygon {
                 exterior: vec![[-2000, -2000], [2000, -2000], [2000, 2000], [-2000, 2000]],
                 interiors: vec![],
                 weight: (),
@@ -41,12 +41,12 @@ impl Layers {
         }
     }
 
-    fn include_top(&mut self, polygon: DemoPolygon) {
-        self.top.include(polygon);
+    fn add_top(&mut self, polygon: DemoPolygon) {
+        self.top.add(polygon);
     }
 
-    fn include_bottom(&mut self, polygon: DemoPolygon) {
-        self.bottom.include(polygon);
+    fn add_bottom(&mut self, polygon: DemoPolygon) {
+        self.bottom.add(polygon);
     }
 
     fn top_result(&self) -> &PolygonSet<i64, DemoPolygon> {
@@ -221,12 +221,12 @@ async fn main() {
                 layers = history[history_index].clone();
             }
         } else if left_pressed {
-            layers.include_top(random_polygon_at_screen_click(center, zoom, mx, my));
+            layers.add_top(random_polygon_at_screen_click(center, zoom, mx, my));
             history.truncate(history_index + 1);
             history.push(layers.clone());
             history_index += 1;
         } else if right_pressed {
-            layers.include_bottom(random_polygon_at_screen_click(center, zoom, mx, my));
+            layers.add_bottom(random_polygon_at_screen_click(center, zoom, mx, my));
             history.truncate(history_index + 1);
             history.push(layers.clone());
             history_index += 1;

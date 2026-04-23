@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 use crate::{
-    Clip, Exclude, Include, Polygon, PolygonId, Rings,
+    Add, Clip, Polygon, PolygonId, Rings, Sub,
     polygon::rectangle_from_polygon,
     bool_ops::{Difference, Intersect, Union},
 };
@@ -78,12 +78,12 @@ impl<
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
-> Include<P> for PolygonSet<K, P, PC, PR>
+> Add<P> for PolygonSet<K, P, PC, PR>
 {
     type Output = PolygonId;
 
-    fn include(&mut self, polygon: P) -> PolygonId {
-        self.include(polygon)
+    fn add(&mut self, polygon: P) -> PolygonId {
+        self.add(polygon)
     }
 }
 
@@ -96,7 +96,7 @@ impl<
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
 > PolygonSet<K, P, PC, PR>
 {
-    pub fn include(&mut self, polygon: P) -> PolygonId {
+    pub fn add(&mut self, polygon: P) -> PolygonId {
         let rectangle = rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
             .rtree
@@ -150,12 +150,12 @@ impl<
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
-> Exclude<P> for PolygonSet<K, P, PC, PR>
+> Sub<P> for PolygonSet<K, P, PC, PR>
 {
     type Output = (Vec<PolygonId>, Vec<P>);
 
-    fn exclude(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
-        self.exclude(polygon)
+    fn sub(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
+        self.sub(polygon)
     }
 }
 
@@ -168,7 +168,7 @@ impl<
         + Remove<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
 > PolygonSet<K, P, PC, PR>
 {
-    pub fn exclude(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
+    pub fn sub(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
         let rectangle = rectangle_from_polygon(&polygon);
         let neighbor_ids: Vec<PolygonId> = self
             .rtree
