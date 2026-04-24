@@ -6,8 +6,6 @@ use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
 #[cfg(feature = "undoredo")]
 use core::marker::PhantomData;
-#[cfg(feature = "undoredo")]
-use maplike::Container;
 
 use rstar::RTreeNum;
 use rstar::RTreeObject;
@@ -220,9 +218,9 @@ pub type LayersWithTransitionsDelta<K, P, LE, TE> =
 impl<
     K: RTreeNum,
     P,
-    LE: Clone + Container,
+    LE: Clone,
     L: Clone + ApplyDelta<LE>,
-    TE: Clone + Container,
+    TE: Clone,
     T: Clone + ApplyDelta<TE>,
 > ApplyDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
 {
@@ -255,9 +253,9 @@ impl<
 impl<
     K: RTreeNum,
     P,
-    LE: Clone + Container,
+    LE: Clone,
     L: FlushDelta<LE>,
-    TE: Clone + Container,
+    TE: Clone,
     T: FlushDelta<TE>,
 > FlushDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
 {

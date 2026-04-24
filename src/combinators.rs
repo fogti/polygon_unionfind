@@ -207,7 +207,7 @@ pub type InflatedHalfDelta<IE, K> = Inflated<IE, PhantomData<K>>;
 pub type InflatedDelta<IE, K> = Delta<InflatedHalfDelta<IE, K>>;
 
 #[cfg(feature = "undoredo")]
-impl<IE: Clone + Container, IC: Clone + ApplyDelta<IE>, K> ApplyDelta<InflatedHalfDelta<IE, K>>
+impl<IE: Clone, IC: Clone + ApplyDelta<IE>, K> ApplyDelta<InflatedHalfDelta<IE, K>>
     for Inflated<IC, K>
 {
     fn apply_delta(&mut self, delta: InflatedDelta<IE, K>) {
@@ -219,7 +219,7 @@ impl<IE: Clone + Container, IC: Clone + ApplyDelta<IE>, K> ApplyDelta<InflatedHa
 }
 
 #[cfg(feature = "undoredo")]
-impl<IE: Clone + Container, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>>
+impl<IE: Clone, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>>
     for Inflated<IC, K>
 {
     fn flush_delta(&mut self) -> InflatedDelta<IE, K> {
@@ -253,9 +253,9 @@ pub type NegatedDelta<ME, SE> = Delta<NegatedHalfDelta<ME, SE>>;
 
 #[cfg(feature = "undoredo")]
 impl<
-    ME: Clone + Container,
+    ME: Clone,
     M: Clone + ApplyDelta<ME>,
-    SE: Clone + Container,
+    SE: Clone,
     S: Clone + ApplyDelta<SE>,
 > ApplyDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
 {
@@ -272,7 +272,7 @@ impl<
 }
 
 #[cfg(feature = "undoredo")]
-impl<ME: Clone + Container, M: FlushDelta<ME>, SE: Clone + Container, S: FlushDelta<SE>>
+impl<ME: Clone, M: FlushDelta<ME>, SE: Clone, S: FlushDelta<SE>>
     FlushDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
 {
     fn flush_delta(&mut self) -> NegatedDelta<ME, SE> {
@@ -305,7 +305,7 @@ pub type ParalleledHalfDelta<SE> = Paralleled<SE>;
 pub type ParalleledDelta<SE> = Delta<ParalleledHalfDelta<SE>>;
 
 #[cfg(feature = "undoredo")]
-impl<SE: Clone + Container, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>>
+impl<SE: Clone, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>>
     for Paralleled<S>
 {
     fn apply_delta(&mut self, delta: ParalleledDelta<SE>) {
@@ -326,7 +326,7 @@ impl<SE: Clone + Container, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalf
 }
 
 #[cfg(feature = "undoredo")]
-impl<SE: Clone + Container, S: FlushDelta<SE>> FlushDelta<ParalleledHalfDelta<SE>> for Paralleled<S> {
+impl<SE: Clone, S: FlushDelta<SE>> FlushDelta<ParalleledHalfDelta<SE>> for Paralleled<S> {
     fn flush_delta(&mut self) -> ParalleledDelta<SE> {
         let (removed_primary, inserted_primary) = self.primary.flush_delta().dissolve();
 

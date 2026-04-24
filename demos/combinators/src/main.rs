@@ -7,87 +7,116 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{
-    Add, Inflated, Negated, Paralleled, PolygonSet, PolygonUnionFind, PolygonWithData,
+    Add, Inflated, LayersWithTransitionsDelta, Negated, Paralleled, PolygonSetHalfDelta,
+    PolygonUnionFindHalfDelta, PolygonWithData, RecordingInflated, RecordingLayersWithTransitions,
+    RecordingNegated, RecordingPolygonSet, RecordingPolygonUnionFind,
 };
+use undoredo::UndoRedo;
 
 type DemoPolygon = PolygonWithData<i64, ()>;
-type DemoLayer =
-    Negated<PolygonSet<i64, DemoPolygon>, Inflated<PolygonUnionFind<i64, DemoPolygon>, i64>>;
+type DemoNegated = RecordingNegated<i64, DemoPolygon>;
+type DemoLayerWithParallel = Paralleled<Paralleled<DemoNegated>>;
+type DemoTransitionLayer = Paralleled<RecordingPolygonSet<i64, DemoPolygon>>;
+type DemoLayersWithTransitions =
+    RecordingLayersWithTransitions<i64, DemoPolygon>;
+type DemoLayersDelta = LayersWithTransitionsDelta<
+    i64,
+    DemoPolygon,
+    Paralleled<
+        Paralleled<
+            Negated<
+                PolygonSetHalfDelta<i64, DemoPolygon>,
+                Inflated<PolygonUnionFindHalfDelta<i64, DemoPolygon>, core::marker::PhantomData<i64>>,
+            >,
+        >,
+    >,
+    Paralleled<PolygonSetHalfDelta<i64, DemoPolygon>>,
+>;
 
 struct Layers {
-    top: Paralleled<DemoLayer>,
-    bottom: Paralleled<DemoLayer>,
+    inner: DemoLayersWithTransitions,
 }
 
 impl Layers {
     fn new() -> Self {
-        let new_layer = |offset| {
-            let mut minuend: PolygonSet<i64, DemoPolygon> = PolygonSet::new();
-            minuend.add(DemoPolygon {
+        let new_negated = |offset| {
+            let mut minuend: RecordingPolygonSet<i64, DemoPolygon> = RecordingPolygonSet::new();
+            let _ = minuend.add(DemoPolygon {
                 exterior: vec![[-2000, -2000], [2000, -2000], [2000, 2000], [-2000, 2000]],
                 interiors: vec![],
                 weight: (),
             });
 
-            Negated::new(
+            RecordingNegated::new(
                 minuend,
-                Inflated::<PolygonUnionFind<i64, DemoPolygon>, i64>::new(offset),
+                RecordingInflated::<i64, DemoPolygon>::new(offset),
             )
         };
+        let new_layer = || DemoLayerWithParallel::new(Paralleled::new(new_negated(0), vec![new_negated(50)]), vec![]);
+        let new_transition = || DemoTransitionLayer::new(RecordingPolygonSet::new(), vec![]);
 
         Self {
-            top: Paralleled::new(new_layer(0), vec![new_layer(50)]),
-            bottom: Paralleled::new(new_layer(0), vec![new_layer(50)]),
+            inner: DemoLayersWithTransitions::new(
+                vec![new_layer(), new_layer()],
+                vec![new_transition()],
+            ),
         }
     }
 
-    fn add_top(&mut self, polygon: DemoPolygon) {
-        self.top.add(polygon);
+    fn include_top(&mut self, polygon: DemoPolygon) {
+        let _ = self.inner.layers[0].add(polygon);
     }
 
-    fn add_bottom(&mut self, polygon: DemoPolygon) {
-        self.bottom.add(polygon);
+    fn include_bottom(&mut self, polygon: DemoPolygon) {
+        let _ = self.inner.layers[1].add(polygon);
     }
 
-    fn top_result(&self) -> &PolygonSet<i64, DemoPolygon> {
-        self.top.primary().minuend()
+    fn top_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
+        self.inner.layers()[0].primary().primary().minuend()
     }
 
-    fn top_subtrahend(&self) -> &PolygonUnionFind<i64, DemoPolygon> {
-        self.top.primary().subtrahend().inflatee()
+    fn top_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
+        self.inner.layers()[0]
+            .primary()
+            .primary()
+            .subtrahend()
+            .inflatee()
     }
 
-    fn parallel_result(&self) -> &PolygonSet<i64, DemoPolygon> {
-        self.top.parallels()[0].minuend()
+    fn parallel_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
+        self.inner.layers()[0].primary().parallels()[0].minuend()
     }
 
-    fn parallel_subtrahend(&self) -> &PolygonUnionFind<i64, DemoPolygon> {
-        self.top.parallels()[0].subtrahend().inflatee()
+    fn parallel_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
+        self.inner.layers()[0]
+            .primary()
+            .parallels()[0]
+            .subtrahend()
+            .inflatee()
     }
 
-    fn bottom_result(&self) -> &PolygonSet<i64, DemoPolygon> {
-        self.bottom.primary().minuend()
+    fn bottom_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
+        self.inner.layers()[1].primary().primary().minuend()
     }
 
-    fn bottom_subtrahend(&self) -> &PolygonUnionFind<i64, DemoPolygon> {
-        self.bottom.primary().subtrahend().inflatee()
+    fn bottom_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
+        self.inner.layers()[1]
+            .primary()
+            .primary()
+            .subtrahend()
+            .inflatee()
     }
 
-    fn bottom_parallel_result(&self) -> &PolygonSet<i64, DemoPolygon> {
-        self.bottom.parallels()[0].minuend()
+    fn bottom_parallel_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
+        self.inner.layers()[1].primary().parallels()[0].minuend()
     }
 
-    fn bottom_parallel_subtrahend(&self) -> &PolygonUnionFind<i64, DemoPolygon> {
-        self.bottom.parallels()[0].subtrahend().inflatee()
-    }
-}
-
-impl Clone for Layers {
-    fn clone(&self) -> Self {
-        Self {
-            top: self.top.clone(),
-            bottom: self.bottom.clone(),
-        }
+    fn bottom_parallel_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
+        self.inner.layers()[1]
+            .primary()
+            .parallels()[0]
+            .subtrahend()
+            .inflatee()
     }
 }
 
@@ -182,9 +211,8 @@ fn darken(color: Color, factor: f32) -> Color {
 
 #[macroquad::main("Combinator Layers Viewer")]
 async fn main() {
+    let mut undoredo: UndoRedo<DemoLayersDelta> = UndoRedo::new();
     let mut layers = Layers::new();
-    let mut history = vec![layers.clone()];
-    let mut history_index = 0usize;
 
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
@@ -211,25 +239,15 @@ async fn main() {
         let mut center = screen_center + offset;
 
         if undo_clicked {
-            if history_index > 0 {
-                history_index -= 1;
-                layers = history[history_index].clone();
-            }
+            undoredo.undo(&mut layers.inner);
         } else if redo_clicked {
-            if history_index + 1 < history.len() {
-                history_index += 1;
-                layers = history[history_index].clone();
-            }
+            undoredo.redo(&mut layers.inner);
         } else if left_pressed {
-            layers.add_top(random_polygon_at_screen_click(center, zoom, mx, my));
-            history.truncate(history_index + 1);
-            history.push(layers.clone());
-            history_index += 1;
+            layers.include_top(random_polygon_at_screen_click(center, zoom, mx, my));
+            undoredo.commit(&mut layers.inner);
         } else if right_pressed {
-            layers.add_bottom(random_polygon_at_screen_click(center, zoom, mx, my));
-            history.truncate(history_index + 1);
-            history.push(layers.clone());
-            history_index += 1;
+            layers.include_bottom(random_polygon_at_screen_click(center, zoom, mx, my));
+            undoredo.commit(&mut layers.inner);
         }
 
         let (_, scroll_y) = mouse_wheel();
@@ -352,7 +370,7 @@ async fn main() {
             );
         }
 
-        for (i, (_index, polygon)) in polygon_set.polygons().iter().enumerate() {
+        for (i, (_index, polygon)) in polygon_set.polygons().as_ref().iter().enumerate() {
             let _ = i;
             let color = RED;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
@@ -383,7 +401,7 @@ async fn main() {
             .enumerate()
         {
             let _ = i;
-            let polygon = raw.get(polygon_id.index()).unwrap();
+            let polygon = raw.get(&polygon_id.index()).unwrap();
             let color = dark_color;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
@@ -403,7 +421,7 @@ async fn main() {
         }
 
         let parallel_set = layers.parallel_result();
-        for (i, (_index, polygon)) in parallel_set.polygons().iter().enumerate() {
+        for (i, (_index, polygon)) in parallel_set.polygons().as_ref().iter().enumerate() {
             let _ = i;
             let color = ORANGE;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
@@ -434,7 +452,7 @@ async fn main() {
             .enumerate()
         {
             let _ = i;
-            let polygon = raw_parallel.get(polygon_id.index()).unwrap();
+            let polygon = raw_parallel.get(&polygon_id.index()).unwrap();
             let color = parallel_dark;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
@@ -454,7 +472,7 @@ async fn main() {
         }
 
         let bottom_color = Color::new(0.9, 0.9, 0.9, 1.0);
-        for (i, (_index, polygon)) in bottom_set.polygons().iter().enumerate() {
+        for (i, (_index, polygon)) in bottom_set.polygons().as_ref().iter().enumerate() {
             let _ = i;
             let color = bottom_color;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
@@ -485,7 +503,7 @@ async fn main() {
             .enumerate()
         {
             let _ = i;
-            let polygon = bottom_raw.get(polygon_id.index()).unwrap();
+            let polygon = bottom_raw.get(&polygon_id.index()).unwrap();
             let color = bottom_dark;
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
@@ -505,7 +523,7 @@ async fn main() {
         }
 
         let bottom_parallel_set = layers.bottom_parallel_result();
-        for (i, (_index, polygon)) in bottom_parallel_set.polygons().iter().enumerate() {
+        for (i, (_index, polygon)) in bottom_parallel_set.polygons().as_ref().iter().enumerate() {
             let _ = i;
             let color = darken(bottom_color, 0.75);
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
@@ -535,7 +553,7 @@ async fn main() {
             .enumerate()
         {
             let _ = i;
-            let polygon = bottom_parallel_raw.get(polygon_id.index()).unwrap();
+            let polygon = bottom_parallel_raw.get(&polygon_id.index()).unwrap();
             let color = darken(bottom_color, 0.35);
             let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
