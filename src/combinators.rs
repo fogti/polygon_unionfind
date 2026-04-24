@@ -7,6 +7,13 @@ use alloc::vec::Vec;
 use maplike::{Container, Get};
 
 use crate::{Add, Clip, Inflate, PolygonId, Sub};
+#[cfg(feature = "undoredo")]
+use crate::{PolygonWithData, RecordingPolygonSet, RecordingPolygonUnionFind};
+
+#[cfg(feature = "undoredo")]
+use core::marker::PhantomData;
+#[cfg(feature = "undoredo")]
+use undoredo::{ApplyDelta, Delta, FlushDelta};
 
 #[derive(Clone, Debug)]
 pub struct Inflated<I, K> {
@@ -184,5 +191,163 @@ impl<P: Clone, S: Clip<P>> Clip<P> for Paralleled<S> {
         }
 
         self.primary.clip(polygon)
+    }
+}
+
+#[cfg(feature = "undoredo")]
+/// `Inflated` that records changes for delta-based Undo/Redo.
+pub type RecordingInflated<K, P = PolygonWithData<K>> = Inflated<RecordingPolygonUnionFind<K, P>, K>;
+
+#[cfg(feature = "undoredo")]
+/// Half-delta of `Inflated`.
+pub type InflatedHalfDelta<IE, K> = Inflated<IE, PhantomData<K>>;
+
+#[cfg(feature = "undoredo")]
+/// Delta of `Inflated` for delta-based Undo/Redo.
+pub type InflatedDelta<IE, K> = Delta<InflatedHalfDelta<IE, K>>;
+
+#[cfg(feature = "undoredo")]
+impl<IE: Clone + Container, IC: Clone + ApplyDelta<IE>, K> ApplyDelta<InflatedHalfDelta<IE, K>>
+    for Inflated<IC, K>
+{
+    fn apply_delta(&mut self, delta: InflatedDelta<IE, K>) {
+        let (removed, inserted) = delta.dissolve();
+
+        let inflatee_delta = Delta::with_removed_inserted(removed.inflatee, inserted.inflatee);
+        self.inflatee.apply_delta(inflatee_delta);
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<IE: Clone + Container, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>>
+    for Inflated<IC, K>
+{
+    fn flush_delta(&mut self) -> InflatedDelta<IE, K> {
+        let (removed_inflatee, inserted_inflatee) = self.inflatee.flush_delta().dissolve();
+
+        Delta::with_removed_inserted(
+            Inflated {
+                inflatee: removed_inflatee,
+                offset: PhantomData,
+            },
+            Inflated {
+                inflatee: inserted_inflatee,
+                offset: PhantomData,
+            },
+        )
+    }
+}
+
+#[cfg(feature = "undoredo")]
+/// `Negated` that records changes for delta-based Undo/Redo.
+pub type RecordingNegated<K, P = PolygonWithData<K>> =
+    Negated<RecordingPolygonSet<K, P>, RecordingInflated<K, P>>;
+
+#[cfg(feature = "undoredo")]
+/// Half-delta of `Negated`.
+pub type NegatedHalfDelta<ME, SE> = Negated<ME, SE>;
+
+#[cfg(feature = "undoredo")]
+/// Delta of `Negated` for delta-based Undo/Redo.
+pub type NegatedDelta<ME, SE> = Delta<NegatedHalfDelta<ME, SE>>;
+
+#[cfg(feature = "undoredo")]
+impl<
+    ME: Clone + Container,
+    M: Clone + ApplyDelta<ME>,
+    SE: Clone + Container,
+    S: Clone + ApplyDelta<SE>,
+> ApplyDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
+{
+    fn apply_delta(&mut self, delta: NegatedDelta<ME, SE>) {
+        let (removed, inserted) = delta.dissolve();
+
+        let minuend_delta = Delta::with_removed_inserted(removed.minuend, inserted.minuend);
+        self.minuend.apply_delta(minuend_delta);
+
+        let subtrahend_delta =
+            Delta::with_removed_inserted(removed.subtrahend, inserted.subtrahend);
+        self.subtrahend.apply_delta(subtrahend_delta);
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<ME: Clone + Container, M: FlushDelta<ME>, SE: Clone + Container, S: FlushDelta<SE>>
+    FlushDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
+{
+    fn flush_delta(&mut self) -> NegatedDelta<ME, SE> {
+        let (removed_minuend, inserted_minuend) = self.minuend.flush_delta().dissolve();
+        let (removed_subtrahend, inserted_subtrahend) = self.subtrahend.flush_delta().dissolve();
+
+        Delta::with_removed_inserted(
+            Negated {
+                minuend: removed_minuend,
+                subtrahend: removed_subtrahend,
+            },
+            Negated {
+                minuend: inserted_minuend,
+                subtrahend: inserted_subtrahend,
+            },
+        )
+    }
+}
+
+#[cfg(feature = "undoredo")]
+/// `Paralleled` that records changes for delta-based Undo/Redo.
+pub type RecordingParalleled<K, P = PolygonWithData<K>> = Paralleled<RecordingNegated<K, P>>;
+
+#[cfg(feature = "undoredo")]
+/// Half-delta of `Paralleled`.
+pub type ParalleledHalfDelta<SE> = Paralleled<SE>;
+
+#[cfg(feature = "undoredo")]
+/// Delta of `Paralleled` for delta-based Undo/Redo.
+pub type ParalleledDelta<SE> = Delta<ParalleledHalfDelta<SE>>;
+
+#[cfg(feature = "undoredo")]
+impl<SE: Clone + Container, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>>
+    for Paralleled<S>
+{
+    fn apply_delta(&mut self, delta: ParalleledDelta<SE>) {
+        let (removed, inserted) = delta.dissolve();
+
+        let primary_delta = Delta::with_removed_inserted(removed.primary, inserted.primary);
+        self.primary.apply_delta(primary_delta);
+
+        for (parallel, (removed_parallel, inserted_parallel)) in self.parallels.iter_mut().zip(
+            removed
+                .parallels
+                .into_iter()
+                .zip(inserted.parallels.into_iter()),
+        ) {
+            parallel.apply_delta(Delta::with_removed_inserted(removed_parallel, inserted_parallel));
+        }
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<SE: Clone + Container, S: FlushDelta<SE>> FlushDelta<ParalleledHalfDelta<SE>> for Paralleled<S> {
+    fn flush_delta(&mut self) -> ParalleledDelta<SE> {
+        let (removed_primary, inserted_primary) = self.primary.flush_delta().dissolve();
+
+        let mut removed_parallels = Vec::with_capacity(self.parallels.len());
+        let mut inserted_parallels = Vec::with_capacity(self.parallels.len());
+
+        for parallel in &mut self.parallels {
+            let (removed_parallel, inserted_parallel) = parallel.flush_delta().dissolve();
+            removed_parallels.push(removed_parallel);
+            inserted_parallels.push(inserted_parallel);
+        }
+
+        Delta::with_removed_inserted(
+            Paralleled {
+                primary: removed_primary,
+                parallels: removed_parallels,
+            },
+            Paralleled {
+                primary: inserted_primary,
+                parallels: inserted_parallels,
+            },
+        )
     }
 }

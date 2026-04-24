@@ -20,8 +20,14 @@ mod polygon_unionfind;
 mod unionfind;
 
 pub use combinators::{Inflated, Negated, Paralleled};
+#[cfg(feature = "undoredo")]
+pub use combinators::{RecordingInflated, RecordingNegated, RecordingParalleled};
 pub use inflate::Inflate;
 pub use layers_with_transitions::LayersWithTransitions;
+#[cfg(feature = "undoredo")]
+pub use layers_with_transitions::{
+    LayersWithTransitionsDelta, LayersWithTransitionsHalfDelta, RecordingLayersWithTransitions,
+};
 pub use polygon::{Polygon, PolygonId, PolygonWithData, Rings};
 pub use polygon_set::PolygonSet;
 #[cfg(feature = "undoredo")]

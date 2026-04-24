@@ -4,32 +4,52 @@
 
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
+#[cfg(feature = "undoredo")]
+use core::marker::PhantomData;
+#[cfg(feature = "undoredo")]
+use maplike::Container;
 
 use rstar::RTreeNum;
 use rstar::RTreeObject;
+#[cfg(feature = "undoredo")]
+use undoredo::{ApplyDelta, Delta, FlushDelta};
 
 use crate::bool_ops::{Difference, Intersect, Union};
 use crate::{
-    Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, Sub,
-    PolygonUnionFind, PolygonWithData, Rings, polygon::rectangle_from_polygon,
+    Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, PolygonUnionFind,
+    PolygonWithData, Rings, Sub, polygon::rectangle_from_polygon,
 };
+#[cfg(feature = "undoredo")]
+use crate::{RecordingNegated, RecordingPolygonSet};
 
 pub type LayerWithParallel<K, P> =
     Paralleled<Paralleled<Negated<PolygonSet<K, P>, Inflated<PolygonUnionFind<K, P>, K>>>>;
 pub type TransitionLayer<K, P> = Paralleled<PolygonSet<K, P>>;
 
+#[cfg(feature = "undoredo")]
+/// Layer-with-parallel based on recording containers for delta-based Undo/Redo.
+pub type RecordingLayerWithParallel<K, P = PolygonWithData<K>> =
+    Paralleled<Paralleled<RecordingNegated<K, P>>>;
+
+#[cfg(feature = "undoredo")]
+/// Transition layer based on recording containers for delta-based Undo/Redo.
+pub type RecordingTransitionLayer<K, P = PolygonWithData<K>> = Paralleled<RecordingPolygonSet<K, P>>;
+
 #[derive(Clone)]
-pub struct LayersWithTransitions<K: RTreeNum, P = PolygonWithData<K>> {
-    pub layers: Vec<LayerWithParallel<K, P>>,
-    pub transitions: Vec<TransitionLayer<K, P>>,
+pub struct LayersWithTransitions<
+    K: RTreeNum,
+    P = PolygonWithData<K>,
+    L = LayerWithParallel<K, P>,
+    T = TransitionLayer<K, P>,
+> {
+    pub layers: Vec<L>,
+    pub transitions: Vec<T>,
+    scalar_and_polygon_marker: PhantomData<(K, P)>,
 }
 
-impl<K: RTreeNum, P> LayersWithTransitions<K, P> {
+impl<K: RTreeNum, P, L, T> LayersWithTransitions<K, P, L, T> {
     #[inline]
-    pub fn new(
-        layers: Vec<LayerWithParallel<K, P>>,
-        transitions: Vec<TransitionLayer<K, P>>,
-    ) -> Self {
+    pub fn new(layers: Vec<L>, transitions: Vec<T>) -> Self {
         assert!(
             transitions.len() == layers.len().saturating_sub(1),
             "transitions must have exactly layers.len() - 1 entries"
@@ -37,31 +57,32 @@ impl<K: RTreeNum, P> LayersWithTransitions<K, P> {
         Self {
             layers,
             transitions,
+            scalar_and_polygon_marker: PhantomData,
         }
     }
 
     #[inline]
-    pub fn layers(&self) -> &[LayerWithParallel<K, P>] {
+    pub fn layers(&self) -> &[L] {
         &self.layers
     }
 
     #[inline]
-    pub fn transitions(&self) -> &[TransitionLayer<K, P>] {
+    pub fn transitions(&self) -> &[T] {
         &self.transitions
     }
 
     #[inline]
-    pub fn layer(&self, index: usize) -> Option<&LayerWithParallel<K, P>> {
+    pub fn layer(&self, index: usize) -> Option<&L> {
         self.layers.get(index)
     }
 
     #[inline]
-    pub fn transition(&self, index: usize) -> Option<&TransitionLayer<K, P>> {
+    pub fn transition(&self, index: usize) -> Option<&T> {
         self.transitions.get(index)
     }
 }
 
-impl<K, P> LayersWithTransitions<K, P>
+impl<K, P> LayersWithTransitions<K, P, LayerWithParallel<K, P>, TransitionLayer<K, P>>
 where
     K: RTreeNum + Ord,
     P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersect<P>,
@@ -174,5 +195,101 @@ where
                 transition.add(piece.clone());
             }
         }
+    }
+}
+
+#[cfg(feature = "undoredo")]
+/// `LayersWithTransitions`-equivalent using recording container combinators.
+pub type RecordingLayersWithTransitions<K, P = PolygonWithData<K>> = LayersWithTransitions<
+    K,
+    P,
+    RecordingLayerWithParallel<K, P>,
+    RecordingTransitionLayer<K, P>,
+>;
+
+#[cfg(feature = "undoredo")]
+/// Half-delta of `LayersWithTransitions`.
+pub type LayersWithTransitionsHalfDelta<K, P, LE, TE> = LayersWithTransitions<K, P, LE, TE>;
+
+#[cfg(feature = "undoredo")]
+/// Delta of `LayersWithTransitions` for delta-based Undo/Redo.
+pub type LayersWithTransitionsDelta<K, P, LE, TE> =
+    Delta<LayersWithTransitionsHalfDelta<K, P, LE, TE>>;
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    P,
+    LE: Clone + Container,
+    L: Clone + ApplyDelta<LE>,
+    TE: Clone + Container,
+    T: Clone + ApplyDelta<TE>,
+> ApplyDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
+{
+    fn apply_delta(&mut self, delta: LayersWithTransitionsDelta<K, P, LE, TE>) {
+        let (removed, inserted) = delta.dissolve();
+
+        for (layer, (removed_layer, inserted_layer)) in self.layers.iter_mut().zip(
+            removed
+                .layers
+                .into_iter()
+                .zip(inserted.layers.into_iter()),
+        ) {
+            layer.apply_delta(Delta::with_removed_inserted(removed_layer, inserted_layer));
+        }
+
+        for (transition, (removed_transition, inserted_transition)) in self
+            .transitions
+            .iter_mut()
+            .zip(removed.transitions.into_iter().zip(inserted.transitions.into_iter()))
+        {
+            transition.apply_delta(Delta::with_removed_inserted(
+                removed_transition,
+                inserted_transition,
+            ));
+        }
+    }
+}
+
+#[cfg(feature = "undoredo")]
+impl<
+    K: RTreeNum,
+    P,
+    LE: Clone + Container,
+    L: FlushDelta<LE>,
+    TE: Clone + Container,
+    T: FlushDelta<TE>,
+> FlushDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
+{
+    fn flush_delta(&mut self) -> LayersWithTransitionsDelta<K, P, LE, TE> {
+        let mut removed_layers = Vec::with_capacity(self.layers.len());
+        let mut inserted_layers = Vec::with_capacity(self.layers.len());
+        let mut removed_transitions = Vec::with_capacity(self.transitions.len());
+        let mut inserted_transitions = Vec::with_capacity(self.transitions.len());
+
+        for layer in &mut self.layers {
+            let (removed_layer, inserted_layer) = layer.flush_delta().dissolve();
+            removed_layers.push(removed_layer);
+            inserted_layers.push(inserted_layer);
+        }
+
+        for transition in &mut self.transitions {
+            let (removed_transition, inserted_transition) = transition.flush_delta().dissolve();
+            removed_transitions.push(removed_transition);
+            inserted_transitions.push(inserted_transition);
+        }
+
+        Delta::with_removed_inserted(
+            LayersWithTransitions {
+                layers: removed_layers,
+                transitions: removed_transitions,
+                scalar_and_polygon_marker: PhantomData,
+            },
+            LayersWithTransitions {
+                layers: inserted_layers,
+                transitions: inserted_transitions,
+                scalar_and_polygon_marker: PhantomData,
+            },
+        )
     }
 }
