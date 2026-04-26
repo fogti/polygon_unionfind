@@ -20,10 +20,14 @@ deltas or snapshots.
 
 ## Demo
 
-For an interactive visualization of `polygon_unionfind`'s merging and undo-redo
-action, you can run our graphical demos implemented using the cross-platform
-[`macroquad`](https://crates.io/crates/macroquad) crate by running the following
-commands:
+![Animation showing polygons being added and subtracted in the demo stored in
+`demos/polygon_set/` directory](polygon_set_demo.gif)
+
+For an interactive visualization of `polygon_unionfind`'s polygon addition,
+subtraction, and undo-redo action, you can run our graphical demos implemented
+using the cross-platform [`macroquad`](https://crates.io/crates/macroquad)
+crate by running the following commands. The first one is shown in action on the
+animation above.
 
 ```sh
 cargo run --manifest-path=demos/polygon_set/Cargo.toml
@@ -31,6 +35,10 @@ cargo run --manifest-path=demos/polygon_set/Cargo.toml
 
 ```sh
 cargo run --manifest-path=demos/combinators/Cargo.toml
+```
+
+```sh
+cargo run --manifest-path=demos/layers_with_transitions/Cargo.toml
 ```
 
 ## Usage
