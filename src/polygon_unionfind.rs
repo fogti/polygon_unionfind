@@ -15,8 +15,6 @@ use std::collections::BTreeMap;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
-#[cfg(feature = "undoredo")]
-use crate::PolygonWithData;
 use crate::bool_ops::Union;
 use crate::polygon::rectangle_from_polygon;
 use crate::unionfind::UnionFind;
@@ -295,7 +293,7 @@ impl<K: RTreeNum, P, PC: Clear, PR: Clear, UFPC: Clear, UFRC: Clear>
 
 #[cfg(feature = "undoredo")]
 /// `PolygonUnionFind` that records changes for delta-based Undo/Redo.
-pub type RecordingPolygonUnionFind<K, P = PolygonWithData<K>> = PolygonUnionFind<
+pub type RecordingPolygonUnionFind<K, P = Polygon<K>> = PolygonUnionFind<
     K,
     P,
     Recorder<Vec<P>, BTreeMap<usize, P>>,
@@ -306,7 +304,7 @@ pub type RecordingPolygonUnionFind<K, P = PolygonWithData<K>> = PolygonUnionFind
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `PolygonUnionFind`.
-pub type PolygonUnionFindHalfDelta<K, P = PolygonWithData<K>> = PolygonUnionFind<
+pub type PolygonUnionFindHalfDelta<K, P = Polygon<K>> = PolygonUnionFind<
     K,
     P,
     BTreeMap<usize, P>,
@@ -317,7 +315,7 @@ pub type PolygonUnionFindHalfDelta<K, P = PolygonWithData<K>> = PolygonUnionFind
 
 #[cfg(feature = "undoredo")]
 /// Delta of `PolygonUnionFind` for delta-based Undo/Redo.
-pub type PolygonUnionFindDelta<K, P = PolygonWithData<K>> = Delta<PolygonUnionFindHalfDelta<K, P>>;
+pub type PolygonUnionFindDelta<K, P = Polygon<K>> = Delta<PolygonUnionFindHalfDelta<K, P>>;
 
 #[cfg(feature = "undoredo")]
 impl<

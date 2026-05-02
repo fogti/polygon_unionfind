@@ -60,11 +60,11 @@ If you don't need to perform undo and redo operations, you can remove the
 Following is a basic usage example of `polygon_unionfind`.
 
 ```rust
-use polygon_unionfind::{PolygonUnionFind, PolygonWithWeight};
+use polygon_unionfind::{PolygonUnionFind, PolygonWithData};
 
-let mut polygon_unionfind = PolygonUnionFind::<i64, PolygonWithWeight<i64, &str>>::new();
+let mut polygon_unionfind = PolygonUnionFind::<i64, PolygonWithData<i64, &str>>::new();
 
-let polygon1 = polygon_unionfind.insert(PolygonWithWeight {
+let polygon1 = polygon_unionfind.add(PolygonWithData {
     exterior: vec![
         [0, 0],
         [3, 0],
@@ -77,7 +77,7 @@ let polygon1 = polygon_unionfind.insert(PolygonWithWeight {
     weight: "first",
 });
 
-let polygon2 = polygon_unionfind.insert(PolygonWithWeight {
+let polygon2 = polygon_unionfind.add(PolygonWithData {
     exterior: vec![
         [2, 0],
         [5, 0],
@@ -92,8 +92,8 @@ let polygon2 = polygon_unionfind.insert(PolygonWithWeight {
 
 // Overlapping polygons are now in the same set and thus have the same
 // representative.
-let polygon1_repr = polygon_unionfind.find(polygon1).exterior.len();
-let polygon2_repr = polygon_unionfind.find(polygon2).exterior.len();
+let polygon1_repr = polygon_unionfind.find(polygon1.index()).exterior.len();
+let polygon2_repr = polygon_unionfind.find(polygon2.index()).exterior.len();
 assert_eq!(polygon1_repr, polygon2_repr);
 ```
 
