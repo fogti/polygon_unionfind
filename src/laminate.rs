@@ -11,7 +11,7 @@ use rstar::RTreeObject;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta};
 
-use crate::bool_ops::{Difference, Intersect, Union};
+use crate::bool_ops::{Difference, Intersection, Union};
 use crate::{
     Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, PolygonUnionFind,
     PolygonWithData, Rings, Sub, polygon::rectangle_from_polygon,
@@ -34,18 +34,18 @@ pub type RecordingTransitionLayer<K, P = PolygonWithData<K>> =
     Paralleled<RecordingPolygonSet<K, P>>;
 
 #[derive(Clone)]
-pub struct LayersWithTransitions<
+pub struct Laminate<
     K: RTreeNum,
     P = PolygonWithData<K>,
     L = LayerWithParallel<K, P>,
     T = TransitionLayer<K, P>,
 > {
-    pub layers: Vec<L>,
-    pub transitions: Vec<T>,
+    layers: Vec<L>,
+    transitions: Vec<T>,
     scalar_and_polygon_marker: PhantomData<(K, P)>,
 }
 
-impl<K: RTreeNum, P, L, T> LayersWithTransitions<K, P, L, T> {
+impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     #[inline]
     pub fn new(layers: Vec<L>, transitions: Vec<T>) -> Self {
         assert!(
@@ -80,10 +80,10 @@ impl<K: RTreeNum, P, L, T> LayersWithTransitions<K, P, L, T> {
     }
 }
 
-impl<K, P> LayersWithTransitions<K, P, LayerWithParallel<K, P>, TransitionLayer<K, P>>
+impl<K, P> Laminate<K, P, LayerWithParallel<K, P>, TransitionLayer<K, P>>
 where
     K: RTreeNum + Ord,
-    P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersect<P>,
+    P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersection<P>,
 {
     pub fn add_into_layer(&mut self, layer_index: usize, polygon: P) {
         if layer_index >= self.layers.len() {
@@ -197,11 +197,10 @@ where
 }
 
 #[cfg(feature = "undoredo")]
-impl<K, P>
-    LayersWithTransitions<K, P, RecordingLayerWithParallel<K, P>, RecordingTransitionLayer<K, P>>
+impl<K, P> Laminate<K, P, RecordingLayerWithParallel<K, P>, RecordingTransitionLayer<K, P>>
 where
     K: RTreeNum + Ord,
-    P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersect<P>,
+    P: Clone + Rings<K> + Inflate<K> + Union<P> + Difference<P> + Intersection<P>,
 {
     pub fn add_into_layer(&mut self, layer_index: usize, polygon: P) {
         if layer_index >= self.layers.len() {
@@ -263,7 +262,11 @@ where
         }
     }
 
-    fn recording_clip_transpolygon(&mut self, transpolygon_index: usize, clipping_polygons: Vec<P>) {
+    fn recording_clip_transpolygon(
+        &mut self,
+        transpolygon_index: usize,
+        clipping_polygons: Vec<P>,
+    ) {
         let transition = &mut self.transitions[transpolygon_index];
 
         if clipping_polygons.is_empty() {
@@ -288,7 +291,14 @@ where
 
         let located_transpolygons: Vec<P> = located_transids
             .into_iter()
-            .filter_map(|id| transition.primary().polygons().as_ref().get(id.index()).cloned())
+            .filter_map(|id| {
+                transition
+                    .primary()
+                    .polygons()
+                    .as_ref()
+                    .get(id.index())
+                    .cloned()
+            })
             .collect();
 
         for transpolygon in located_transpolygons {
@@ -318,24 +328,23 @@ where
 }
 
 #[cfg(feature = "undoredo")]
-/// `LayersWithTransitions`-equivalent using recording container combinators.
-pub type RecordingLayersWithTransitions<K, P = PolygonWithData<K>> =
-    LayersWithTransitions<K, P, RecordingLayerWithParallel<K, P>, RecordingTransitionLayer<K, P>>;
+/// `Laminate`-equivalent using recording container combinators.
+pub type RecordingLaminate<K, P = PolygonWithData<K>> =
+    Laminate<K, P, RecordingLayerWithParallel<K, P>, RecordingTransitionLayer<K, P>>;
 
 #[cfg(feature = "undoredo")]
-/// Half-delta of `LayersWithTransitions`.
-pub type LayersWithTransitionsHalfDelta<K, P, LE, TE> = LayersWithTransitions<K, P, LE, TE>;
+/// Half-delta of `Laminate`.
+pub type LaminateHalfDelta<K, P, LE, TE> = Laminate<K, P, LE, TE>;
 
 #[cfg(feature = "undoredo")]
-/// Delta of `LayersWithTransitions` for delta-based Undo/Redo.
-pub type LayersWithTransitionsDelta<K, P, LE, TE> =
-    Delta<LayersWithTransitionsHalfDelta<K, P, LE, TE>>;
+/// Delta of `Laminate` for delta-based Undo/Redo.
+pub type LaminateDelta<K, P, LE, TE> = Delta<LaminateHalfDelta<K, P, LE, TE>>;
 
 #[cfg(feature = "undoredo")]
 impl<K: RTreeNum, P, LE: Clone, L: Clone + ApplyDelta<LE>, TE: Clone, T: Clone + ApplyDelta<TE>>
-    ApplyDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
+    ApplyDelta<LaminateHalfDelta<K, P, LE, TE>> for Laminate<K, P, L, T>
 {
-    fn apply_delta(&mut self, delta: LayersWithTransitionsDelta<K, P, LE, TE>) {
+    fn apply_delta(&mut self, delta: LaminateDelta<K, P, LE, TE>) {
         let (removed, inserted) = delta.dissolve();
 
         for (layer, (removed_layer, inserted_layer)) in self
@@ -364,9 +373,9 @@ impl<K: RTreeNum, P, LE: Clone, L: Clone + ApplyDelta<LE>, TE: Clone, T: Clone +
 
 #[cfg(feature = "undoredo")]
 impl<K: RTreeNum, P, LE: Clone, L: FlushDelta<LE>, TE: Clone, T: FlushDelta<TE>>
-    FlushDelta<LayersWithTransitionsHalfDelta<K, P, LE, TE>> for LayersWithTransitions<K, P, L, T>
+    FlushDelta<LaminateHalfDelta<K, P, LE, TE>> for Laminate<K, P, L, T>
 {
-    fn flush_delta(&mut self) -> LayersWithTransitionsDelta<K, P, LE, TE> {
+    fn flush_delta(&mut self) -> LaminateDelta<K, P, LE, TE> {
         let mut removed_layers = Vec::with_capacity(self.layers.len());
         let mut inserted_layers = Vec::with_capacity(self.layers.len());
         let mut removed_transitions = Vec::with_capacity(self.transitions.len());
@@ -385,12 +394,12 @@ impl<K: RTreeNum, P, LE: Clone, L: FlushDelta<LE>, TE: Clone, T: FlushDelta<TE>>
         }
 
         Delta::with_removed_inserted(
-            LayersWithTransitions {
+            Laminate {
                 layers: removed_layers,
                 transitions: removed_transitions,
                 scalar_and_polygon_marker: PhantomData,
             },
-            LayersWithTransitions {
+            Laminate {
                 layers: inserted_layers,
                 transitions: inserted_transitions,
                 scalar_and_polygon_marker: PhantomData,

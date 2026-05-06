@@ -5,8 +5,8 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{
-    Inflated, LayersWithTransitionsDelta, Negated, Paralleled, PolygonSetHalfDelta,
-    PolygonUnionFindHalfDelta, PolygonWithData, RecordingInflated, RecordingLayersWithTransitions,
+    Inflated, LaminateDelta, Negated, Paralleled, PolygonSetHalfDelta,
+    PolygonUnionFindHalfDelta, PolygonWithData, RecordingInflated, RecordingLaminate,
     RecordingNegated, RecordingPolygonSet,
 };
 use undoredo::UndoRedo;
@@ -16,8 +16,8 @@ type DemoNegated = RecordingNegated<i64, DemoPolygon>;
 type DemoInnerLayer = Paralleled<DemoNegated>;
 type DemoLayer = Paralleled<DemoInnerLayer>;
 type DemoTransition = Paralleled<RecordingPolygonSet<i64, DemoPolygon>>;
-type DemoLayersWithTransitions = RecordingLayersWithTransitions<i64, DemoPolygon>;
-type DemoLayersDelta = LayersWithTransitionsDelta<
+type DemoLaminate = RecordingLaminate<i64, DemoPolygon>;
+type DemoLayersDelta = LaminateDelta<
     i64,
     DemoPolygon,
     Paralleled<
@@ -68,8 +68,8 @@ fn new_transition_layer() -> DemoTransition {
     DemoTransition::new(transition_set, vec![])
 }
 
-fn new_layers_with_transitions() -> DemoLayersWithTransitions {
-    DemoLayersWithTransitions::new(
+fn new_layers_with_transitions() -> DemoLaminate {
+    DemoLaminate::new(
         vec![new_layer_stack(), new_layer_stack(), new_layer_stack()],
         vec![new_transition_layer(), new_transition_layer()],
     )

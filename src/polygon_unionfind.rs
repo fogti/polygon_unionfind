@@ -43,7 +43,7 @@ impl<K, P, PC, PR, UFPC, UFRC> Container for PolygonUnionFind<K, P, PC, PR, UFPC
 }
 
 impl<K, P, PC, PR, UFPC, UFRC> PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
-    /// Returns a reference to underlying raw polygon collection.
+    /// Returns a reference to the underlying raw polygon collection.
     #[inline]
     pub fn raw_polygons(&self) -> &PC {
         &self.polygons
@@ -119,7 +119,7 @@ impl<
     /// Iterate representative polygons after all merges.
     ///
     /// If several inserted polygons have been merged into one component,
-    /// only the representative polygon for that component is yielded.
+    /// only the representative polygon for that component is returned.
     #[inline]
     pub fn polygons(&mut self) -> impl Iterator<Item = &PC::Value> {
         let mut deduplicating_set = BTreeSet::new();

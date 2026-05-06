@@ -18,7 +18,7 @@ pub trait Union<T> {
     fn union(subj: T, clip: T) -> Option<T>;
 }
 
-pub trait Intersect<T> {
+pub trait Intersection<T> {
     fn intersect(subj: T, clip: T) -> Vec<T>;
 }
 
@@ -243,11 +243,12 @@ macro_rules! impl_union_int {
 
 macro_rules! impl_intersect_float {
     ($k:ty) => {
-        impl Intersect<Polygon<$k>> for Polygon<$k> {
+        impl Intersection<Polygon<$k>> for Polygon<$k> {
             fn intersect(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let result = subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
+                let result =
+                    subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
                 all_merged_shapes(result)
                     .into_iter()
                     .map(|(exterior, interiors)| Polygon {
@@ -258,14 +259,15 @@ macro_rules! impl_intersect_float {
             }
         }
 
-        impl<W: Clone> Intersect<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+        impl<W: Clone> Intersection<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn intersect(
                 a: PolygonWithData<$k, W>,
                 b: PolygonWithData<$k, W>,
             ) -> Vec<PolygonWithData<$k, W>> {
                 let subj_shape = rings_to_shape(&a);
                 let clip_shape = rings_to_shape(&b);
-                let result = subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
+                let result =
+                    subj_shape.overlay(&clip_shape, OverlayRule::Intersect, FillRule::EvenOdd);
                 all_merged_shapes(result)
                     .into_iter()
                     .map(|(exterior, interiors)| PolygonWithData {
@@ -281,7 +283,7 @@ macro_rules! impl_intersect_float {
 
 macro_rules! impl_intersect_int {
     ($k:ty) => {
-        impl Intersect<Polygon<$k>> for Polygon<$k> {
+        impl Intersection<Polygon<$k>> for Polygon<$k> {
             fn intersect(a: Polygon<$k>, b: Polygon<$k>) -> Vec<Polygon<$k>> {
                 overlay_int_polygons_many(&a, &b, OverlayRule::Intersect)
                     .unwrap_or_default()
@@ -294,7 +296,7 @@ macro_rules! impl_intersect_int {
             }
         }
 
-        impl<W: Clone> Intersect<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
+        impl<W: Clone> Intersection<PolygonWithData<$k, W>> for PolygonWithData<$k, W> {
             fn intersect(
                 a: PolygonWithData<$k, W>,
                 b: PolygonWithData<$k, W>,

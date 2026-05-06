@@ -23,7 +23,7 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 use crate::{
     Add, Clip, Polygon, PolygonId, Rings, Sub,
     polygon::rectangle_from_polygon,
-    bool_ops::{Difference, Intersect, Union},
+    bool_ops::{Difference, Intersection, Union},
 };
 
 #[derive(Clone, Debug)]
@@ -216,7 +216,7 @@ impl<
 
 impl<
     K: RTreeNum + Ord,
-    P: Clone + Rings<K> + Union<P> + Difference<P> + Intersect<P>,
+    P: Clone + Rings<K> + Union<P> + Difference<P> + Intersection<P>,
     PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>
@@ -232,7 +232,7 @@ impl<
 
 impl<
     K: RTreeNum + Ord,
-    P: Clone + Rings<K> + Union<P> + Difference<P> + Intersect<P>,
+    P: Clone + Rings<K> + Union<P> + Difference<P> + Intersection<P>,
     PC: Get<usize, Value = P> + Push<usize> + Remove<usize> + Set<usize>,
     PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
         + Insert<GeomWithData<Rectangle<[K; 2]>, PolygonId>, Value = ()>

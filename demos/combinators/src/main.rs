@@ -7,8 +7,8 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use polygon_unionfind::{
-    Add, Inflated, LayersWithTransitionsDelta, Negated, Paralleled, PolygonSetHalfDelta,
-    PolygonUnionFindHalfDelta, PolygonWithData, RecordingInflated, RecordingLayersWithTransitions,
+    Inflated, LaminateDelta, Negated, Paralleled, PolygonSetHalfDelta,
+    PolygonUnionFindHalfDelta, PolygonWithData, RecordingInflated, RecordingLaminate,
     RecordingNegated, RecordingPolygonSet, RecordingPolygonUnionFind,
 };
 use undoredo::UndoRedo;
@@ -17,9 +17,9 @@ type DemoPolygon = PolygonWithData<i64, ()>;
 type DemoNegated = RecordingNegated<i64, DemoPolygon>;
 type DemoLayerWithParallel = Paralleled<Paralleled<DemoNegated>>;
 type DemoTransitionLayer = Paralleled<RecordingPolygonSet<i64, DemoPolygon>>;
-type DemoLayersWithTransitions =
-    RecordingLayersWithTransitions<i64, DemoPolygon>;
-type DemoLayersDelta = LayersWithTransitionsDelta<
+type DemoLaminate =
+    RecordingLaminate<i64, DemoPolygon>;
+type DemoLayersDelta = LaminateDelta<
     i64,
     DemoPolygon,
     Paralleled<
@@ -34,7 +34,7 @@ type DemoLayersDelta = LayersWithTransitionsDelta<
 >;
 
 struct Layers {
-    inner: DemoLayersWithTransitions,
+    inner: DemoLaminate,
 }
 
 impl Layers {
@@ -56,7 +56,7 @@ impl Layers {
         let new_transition = || DemoTransitionLayer::new(RecordingPolygonSet::new(), vec![]);
 
         Self {
-            inner: DemoLayersWithTransitions::new(
+            inner: DemoLaminate::new(
                 vec![new_layer(), new_layer()],
                 vec![new_transition()],
             ),
@@ -64,11 +64,11 @@ impl Layers {
     }
 
     fn include_top(&mut self, polygon: DemoPolygon) {
-        let _ = self.inner.layers[0].add(polygon);
+        self.inner.add_into_layer(0, polygon);
     }
 
     fn include_bottom(&mut self, polygon: DemoPolygon) {
-        let _ = self.inner.layers[1].add(polygon);
+        self.inner.add_into_layer(1, polygon);
     }
 
     fn top_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
