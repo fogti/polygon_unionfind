@@ -25,9 +25,7 @@ pub use combinators::{RecordingInflated, RecordingNegated, RecordingParalleled};
 pub use inflate::Inflate;
 pub use laminate::Laminate;
 #[cfg(feature = "undoredo")]
-pub use laminate::{
-    LaminateDelta, LaminateHalfDelta, RecordingLaminate,
-};
+pub use laminate::{LaminateDelta, LaminateHalfDelta, RecordingLaminate};
 pub use polygon::{Polygon, PolygonId, PolygonWithData, Rings};
 pub use polygon_set::PolygonSet;
 #[cfg(feature = "undoredo")]

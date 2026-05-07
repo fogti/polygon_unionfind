@@ -4,11 +4,7 @@
 
 use std::marker::PhantomData;
 
-#[cfg(feature = "undoredo")]
-use crate::PolygonWithData;
-#[cfg(feature = "undoredo")]
-use maplike::Container;
-use maplike::{Get, Insert, Push, Remove, Set};
+use maplike::{Container, Get, Insert, Push, Remove, Set};
 use rstar::{
     RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
@@ -22,8 +18,8 @@ use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
 use crate::{
     Add, Clip, Polygon, PolygonId, Rings, Sub,
-    polygon::rectangle_from_polygon,
     bool_ops::{Difference, Intersection, Union},
+    polygon::rectangle_from_polygon,
 };
 
 #[derive(Clone, Debug)]
@@ -48,6 +44,31 @@ impl<K, P, PC, PR> PolygonSet<K, P, PC, PR> {
     #[inline]
     pub fn rtree(&self) -> &PR {
         &self.rtree
+    }
+}
+
+impl<K, P, PC, PR> Container for PolygonSet<K, P, PC, PR> {
+    type Key = PolygonId;
+    type Value = P;
+}
+
+impl<K, P, PC: Get<usize, Value = P>, PR> Get<PolygonId> for PolygonSet<K, P, PC, PR> {
+    #[inline]
+    fn get(&self, key: &PolygonId) -> Option<&Self::Value> {
+        self.polygons.get(&key.index())
+    }
+}
+
+impl<
+    K: RTreeNum,
+    P,
+    PC: Get<usize, Value = P>,
+    PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>,
+> AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>> for PolygonSet<K, P, PC, PR>
+{
+    #[inline]
+    fn as_ref(&self) -> &RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>> {
+        self.rtree().as_ref()
     }
 }
 
@@ -211,7 +232,6 @@ impl<
 
         (piece_ids, removed_polygons)
     }
-
 }
 
 impl<
@@ -321,7 +341,7 @@ impl<
 
 #[cfg(feature = "undoredo")]
 /// `PolygonSet` that records changes for delta-based Undo/Redo.
-pub type RecordingPolygonSet<K, P = PolygonWithData<K>> = PolygonSet<
+pub type RecordingPolygonSet<K, P = Polygon<K>> = PolygonSet<
     K,
     P,
     Recorder<StableVec<P>, BTreeMap<usize, P>>,
@@ -330,12 +350,12 @@ pub type RecordingPolygonSet<K, P = PolygonWithData<K>> = PolygonSet<
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `PolygonSet`.
-pub type PolygonSetHalfDelta<K, P = PolygonWithData<K>> =
+pub type PolygonSetHalfDelta<K, P = Polygon<K>> =
     PolygonSet<K, P, BTreeMap<usize, P>, BTreeMap<GeomWithData<Rectangle<[K; 2]>, PolygonId>, ()>>;
 
 #[cfg(feature = "undoredo")]
 /// Delta of `PolygonSet` for delta-based Undo/Redo.
-pub type PolygonSetDelta<K, P = PolygonWithData<K>> = Delta<PolygonSetHalfDelta<K, P>>;
+pub type PolygonSetDelta<K, P = Polygon<K>> = Delta<PolygonSetHalfDelta<K, P>>;
 
 #[cfg(feature = "undoredo")]
 impl<

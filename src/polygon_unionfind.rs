@@ -37,11 +37,6 @@ pub struct PolygonUnionFind<
     polygon_marker: PhantomData<P>,
 }
 
-impl<K, P, PC, PR, UFPC, UFRC> Container for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
-    type Key = PolygonId;
-    type Value = P;
-}
-
 impl<K, P, PC, PR, UFPC, UFRC> PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
     /// Returns a reference to the underlying raw polygon collection.
     #[inline]
@@ -66,6 +61,37 @@ impl<K, P, PC, PR, UFPC, UFRC> PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
     #[inline]
     pub fn dissolve(self) -> (PC, PR, UnionFind<UFPC, UFRC>) {
         (self.polygons, self.rtree, self.unionfind)
+    }
+}
+
+impl<K, P, PC, PR, UFPC, UFRC> Container for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC> {
+    type Key = PolygonId;
+    type Value = P;
+}
+
+impl<
+    K,
+    P,
+    PC: Get<usize, Value = P>,
+    PR,
+    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
+> Get<PolygonId> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    #[inline]
+    fn get(&self, key: &PolygonId) -> Option<&Self::Value> {
+        let representative = self.unionfind.find(key.index());
+        self.polygons.get(&representative)
+    }
+}
+
+impl<K: RTreeNum, P, PC, PR: AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>, UFPC, UFRC>
+    AsRef<RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>>
+    for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
+{
+    #[inline]
+    fn as_ref(&self) -> &RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>> {
+        self.rtree().as_ref()
     }
 }
 
@@ -129,22 +155,6 @@ impl<
         }
 
         IntoIterator::into_iter(deduplicating_set).map(|i| self.polygons.get(&i).unwrap())
-    }
-}
-
-impl<
-    K,
-    P,
-    PC: Get<usize, Value = P>,
-    PR,
-    UFPC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-    UFRC: Get<usize, Value = usize> + Push<usize> + Set<usize>,
-> Get<PolygonId> for PolygonUnionFind<K, P, PC, PR, UFPC, UFRC>
-{
-    #[inline]
-    fn get(&self, key: &PolygonId) -> Option<&Self::Value> {
-        let representative = self.unionfind.find(key.index());
-        self.polygons.get(&representative)
     }
 }
 
