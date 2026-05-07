@@ -8,7 +8,7 @@ use maplike::{Container, Get};
 
 use crate::{Add, Clip, Inflate, PolygonId, Sub};
 #[cfg(feature = "undoredo")]
-use crate::{PolygonWithData, RecordingPolygonSet, RecordingPolygonUnionFind};
+use crate::{Polygon, RecordingPolygonSet, RecordingPolygonUnionFind};
 
 #[cfg(feature = "undoredo")]
 use core::marker::PhantomData;
@@ -43,9 +43,7 @@ impl<I: Default, K> Inflated<I, K> {
     }
 }
 
-impl<K: Clone, P: Clone + Inflate<K>, S: Add<P, Output = PolygonId>> Add<P>
-    for Inflated<S, K>
-{
+impl<K: Clone, P: Clone + Inflate<K>, S: Add<P, Output = PolygonId>> Add<P> for Inflated<S, K> {
     type Output = PolygonId;
 
     fn add(&mut self, polygon: P) -> PolygonId {
@@ -53,9 +51,7 @@ impl<K: Clone, P: Clone + Inflate<K>, S: Add<P, Output = PolygonId>> Add<P>
     }
 }
 
-impl<K: Clone, P: Clone + Inflate<K>, S: Sub<P>> Sub<P>
-    for Inflated<S, K>
-{
+impl<K: Clone, P: Clone + Inflate<K>, S: Sub<P>> Sub<P> for Inflated<S, K> {
     type Output = S::Output;
 
     fn sub(&mut self, polygon: P) -> S::Output {
@@ -122,8 +118,7 @@ impl<
     fn add(&mut self, polygon: P) -> (Vec<PolygonId>, Vec<P>) {
         let id = self.subtrahend.add(polygon.clone());
 
-        self.minuend
-            .sub(self.subtrahend.get(&id).unwrap().clone())
+        self.minuend.sub(self.subtrahend.get(&id).unwrap().clone())
     }
 }
 
@@ -196,7 +191,7 @@ impl<P: Clone, S: Clip<P>> Clip<P> for Paralleled<S> {
 
 #[cfg(feature = "undoredo")]
 /// `Inflated` that records changes for delta-based Undo/Redo.
-pub type RecordingInflated<K, P = PolygonWithData<K>> = Inflated<RecordingPolygonUnionFind<K, P>, K>;
+pub type RecordingInflated<K, P = Polygon<K>> = Inflated<RecordingPolygonUnionFind<K, P>, K>;
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `Inflated`.
@@ -219,9 +214,7 @@ impl<IE: Clone, IC: Clone + ApplyDelta<IE>, K> ApplyDelta<InflatedHalfDelta<IE, 
 }
 
 #[cfg(feature = "undoredo")]
-impl<IE: Clone, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>>
-    for Inflated<IC, K>
-{
+impl<IE: Clone, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>> for Inflated<IC, K> {
     fn flush_delta(&mut self) -> InflatedDelta<IE, K> {
         let (removed_inflatee, inserted_inflatee) = self.inflatee.flush_delta().dissolve();
 
@@ -240,7 +233,7 @@ impl<IE: Clone, IC: FlushDelta<IE>, K> FlushDelta<InflatedHalfDelta<IE, K>>
 
 #[cfg(feature = "undoredo")]
 /// `Negated` that records changes for delta-based Undo/Redo.
-pub type RecordingNegated<K, P = PolygonWithData<K>> =
+pub type RecordingNegated<K, P = Polygon<K>> =
     Negated<RecordingPolygonSet<K, P>, RecordingInflated<K, P>>;
 
 #[cfg(feature = "undoredo")]
@@ -252,12 +245,8 @@ pub type NegatedHalfDelta<ME, SE> = Negated<ME, SE>;
 pub type NegatedDelta<ME, SE> = Delta<NegatedHalfDelta<ME, SE>>;
 
 #[cfg(feature = "undoredo")]
-impl<
-    ME: Clone,
-    M: Clone + ApplyDelta<ME>,
-    SE: Clone,
-    S: Clone + ApplyDelta<SE>,
-> ApplyDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
+impl<ME: Clone, M: Clone + ApplyDelta<ME>, SE: Clone, S: Clone + ApplyDelta<SE>>
+    ApplyDelta<NegatedHalfDelta<ME, SE>> for Negated<M, S>
 {
     fn apply_delta(&mut self, delta: NegatedDelta<ME, SE>) {
         let (removed, inserted) = delta.dissolve();
@@ -294,7 +283,7 @@ impl<ME: Clone, M: FlushDelta<ME>, SE: Clone, S: FlushDelta<SE>>
 
 #[cfg(feature = "undoredo")]
 /// `Paralleled` that records changes for delta-based Undo/Redo.
-pub type RecordingParalleled<K, P = PolygonWithData<K>> = Paralleled<RecordingNegated<K, P>>;
+pub type RecordingParalleled<K, P = Polygon<K>> = Paralleled<RecordingNegated<K, P>>;
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `Paralleled`.
@@ -305,9 +294,7 @@ pub type ParalleledHalfDelta<SE> = Paralleled<SE>;
 pub type ParalleledDelta<SE> = Delta<ParalleledHalfDelta<SE>>;
 
 #[cfg(feature = "undoredo")]
-impl<SE: Clone, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>>
-    for Paralleled<S>
-{
+impl<SE: Clone, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>> for Paralleled<S> {
     fn apply_delta(&mut self, delta: ParalleledDelta<SE>) {
         let (removed, inserted) = delta.dissolve();
 
@@ -320,7 +307,10 @@ impl<SE: Clone, S: Clone + ApplyDelta<SE>> ApplyDelta<ParalleledHalfDelta<SE>>
                 .into_iter()
                 .zip(inserted.parallels.into_iter()),
         ) {
-            parallel.apply_delta(Delta::with_removed_inserted(removed_parallel, inserted_parallel));
+            parallel.apply_delta(Delta::with_removed_inserted(
+                removed_parallel,
+                inserted_parallel,
+            ));
         }
     }
 }

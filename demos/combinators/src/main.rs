@@ -15,7 +15,7 @@ use undoredo::UndoRedo;
 
 type DemoPolygon = PolygonWithData<i64, ()>;
 type DemoNegated = RecordingNegated<i64, DemoPolygon>;
-type DemoLayerWithParallel = Paralleled<Paralleled<DemoNegated>>;
+type DemoLayerWithParallels = Paralleled<Paralleled<DemoNegated>>;
 type DemoTransitionLayer = Paralleled<RecordingPolygonSet<i64, DemoPolygon>>;
 type DemoLaminate =
     RecordingLaminate<i64, DemoPolygon>;
@@ -52,7 +52,7 @@ impl Layers {
                 RecordingInflated::<i64, DemoPolygon>::new(offset),
             )
         };
-        let new_layer = || DemoLayerWithParallel::new(Paralleled::new(new_negated(0), vec![new_negated(50)]), vec![]);
+        let new_layer = || DemoLayerWithParallels::new(Paralleled::new(new_negated(0), vec![new_negated(50)]), vec![]);
         let new_transition = || DemoTransitionLayer::new(RecordingPolygonSet::new(), vec![]);
 
         Self {

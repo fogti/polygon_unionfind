@@ -13,33 +13,33 @@ use rstar::{RTree, RTreeObject};
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta};
 
+use crate::Polygon;
 use crate::bool_ops::{Difference, Intersection, Union};
 use crate::{
-    Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, PolygonUnionFind,
-    PolygonWithData, Rings, Sub, polygon::rectangle_from_polygon,
+    Add, Inflate, Inflated, Negated, Paralleled, PolygonId, PolygonSet, PolygonUnionFind, Rings,
+    Sub, polygon::rectangle_from_polygon,
 };
 #[cfg(feature = "undoredo")]
 use crate::{RecordingNegated, RecordingPolygonSet};
 
-pub type LayerWithParallel<K, P> =
+pub type LayerWithParallels<K, P> =
     Paralleled<Paralleled<Negated<PolygonSet<K, P>, Inflated<PolygonUnionFind<K, P>, K>>>>;
 pub type TransitionLayer<K, P> = Paralleled<PolygonSet<K, P>>;
 
 #[cfg(feature = "undoredo")]
 /// Layer-with-parallel based on recording containers for delta-based Undo/Redo.
-pub type RecordingLayerWithParallel<K, P = PolygonWithData<K>> =
+pub type RecordingLayerWithParallels<K, P = Polygon<K>> =
     Paralleled<Paralleled<RecordingNegated<K, P>>>;
 
 #[cfg(feature = "undoredo")]
 /// Transition layer based on recording containers for delta-based Undo/Redo.
-pub type RecordingTransitionLayer<K, P = PolygonWithData<K>> =
-    Paralleled<RecordingPolygonSet<K, P>>;
+pub type RecordingTransitionLayer<K, P = Polygon<K>> = Paralleled<RecordingPolygonSet<K, P>>;
 
 #[derive(Clone)]
 pub struct Laminate<
     K: RTreeNum,
-    P = PolygonWithData<K>,
-    L = LayerWithParallel<K, P>,
+    P = Polygon<K>,
+    L = LayerWithParallels<K, P>,
     T = TransitionLayer<K, P>,
 > {
     layers: Vec<L>,
@@ -209,8 +209,8 @@ where
 
 #[cfg(feature = "undoredo")]
 /// `Laminate`-equivalent using recording container combinators.
-pub type RecordingLaminate<K, P = PolygonWithData<K>> =
-    Laminate<K, P, RecordingLayerWithParallel<K, P>, RecordingTransitionLayer<K, P>>;
+pub type RecordingLaminate<K, P = Polygon<K>> =
+    Laminate<K, P, RecordingLayerWithParallels<K, P>, RecordingTransitionLayer<K, P>>;
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `Laminate`.
