@@ -64,19 +64,19 @@ impl Layers {
     }
 
     fn include_top(&mut self, polygon: DemoPolygon) {
-        self.inner.add_into_layer(0, polygon);
+        self.inner.add_into_lamina(0, polygon);
     }
 
     fn include_bottom(&mut self, polygon: DemoPolygon) {
-        self.inner.add_into_layer(1, polygon);
+        self.inner.add_into_lamina(1, polygon);
     }
 
     fn top_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
-        self.inner.layers()[0].primary().primary().minuend()
+        self.inner.laminas()[0].primary().primary().minuend()
     }
 
     fn top_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
-        self.inner.layers()[0]
+        self.inner.laminas()[0]
             .primary()
             .primary()
             .subtrahend()
@@ -84,11 +84,11 @@ impl Layers {
     }
 
     fn parallel_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
-        self.inner.layers()[0].primary().parallels()[0].minuend()
+        self.inner.laminas()[0].primary().parallels()[0].minuend()
     }
 
     fn parallel_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
-        self.inner.layers()[0]
+        self.inner.laminas()[0]
             .primary()
             .parallels()[0]
             .subtrahend()
@@ -96,11 +96,11 @@ impl Layers {
     }
 
     fn bottom_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
-        self.inner.layers()[1].primary().primary().minuend()
+        self.inner.laminas()[1].primary().primary().minuend()
     }
 
     fn bottom_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
-        self.inner.layers()[1]
+        self.inner.laminas()[1]
             .primary()
             .primary()
             .subtrahend()
@@ -108,11 +108,11 @@ impl Layers {
     }
 
     fn bottom_parallel_result(&self) -> &RecordingPolygonSet<i64, DemoPolygon> {
-        self.inner.layers()[1].primary().parallels()[0].minuend()
+        self.inner.laminas()[1].primary().parallels()[0].minuend()
     }
 
     fn bottom_parallel_subtrahend(&self) -> &RecordingPolygonUnionFind<i64, DemoPolygon> {
-        self.inner.layers()[1]
+        self.inner.laminas()[1]
             .primary()
             .parallels()[0]
             .subtrahend()

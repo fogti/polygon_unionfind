@@ -22,63 +22,55 @@ use crate::{
 #[cfg(feature = "undoredo")]
 use crate::{RecordingNegated, RecordingPolygonSet};
 
-pub type LayerWithParallels<K, P> =
+pub type Lamina<K, P = Polygon<K>> =
     Paralleled<Paralleled<Negated<PolygonSet<K, P>, Inflated<PolygonUnionFind<K, P>, K>>>>;
-pub type TransitionLayer<K, P> = Paralleled<PolygonSet<K, P>>;
+pub type Interlamina<K, P = Polygon<K>> = Paralleled<PolygonSet<K, P>>;
 
 #[cfg(feature = "undoredo")]
-/// Layer-with-parallel based on recording containers for delta-based Undo/Redo.
-pub type RecordingLayerWithParallels<K, P = Polygon<K>> =
-    Paralleled<Paralleled<RecordingNegated<K, P>>>;
+pub type RecordingLamina<K, P = Polygon<K>> = Paralleled<Paralleled<RecordingNegated<K, P>>>;
 
 #[cfg(feature = "undoredo")]
-/// Transition layer based on recording containers for delta-based Undo/Redo.
-pub type RecordingTransitionLayer<K, P = Polygon<K>> = Paralleled<RecordingPolygonSet<K, P>>;
+pub type RecordingInterlamina<K, P = Polygon<K>> = Paralleled<RecordingPolygonSet<K, P>>;
 
 #[derive(Clone)]
-pub struct Laminate<
-    K: RTreeNum,
-    P = Polygon<K>,
-    L = LayerWithParallels<K, P>,
-    T = TransitionLayer<K, P>,
-> {
-    layers: Vec<L>,
-    transitions: Vec<T>,
+pub struct Laminate<K: RTreeNum, P = Polygon<K>, L = Lamina<K, P>, T = Interlamina<K, P>> {
+    laminas: Vec<L>,
+    interlaminas: Vec<T>,
     scalar_and_polygon_marker: PhantomData<(K, P)>,
 }
 
 impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     #[inline]
-    pub fn new(layers: Vec<L>, transitions: Vec<T>) -> Self {
+    pub fn new(laminas: Vec<L>, interlaminas: Vec<T>) -> Self {
         assert!(
-            transitions.len() == layers.len().saturating_sub(1),
-            "transitions must have exactly layers.len() - 1 entries"
+            interlaminas.len() == laminas.len().saturating_sub(1),
+            "interlaminas must have exactly laminas.len() - 1 entries"
         );
         Self {
-            layers,
-            transitions,
+            laminas,
+            interlaminas,
             scalar_and_polygon_marker: PhantomData,
         }
     }
 
     #[inline]
-    pub fn layers(&self) -> &[L] {
-        &self.layers
+    pub fn laminas(&self) -> &[L] {
+        &self.laminas
     }
 
     #[inline]
-    pub fn transitions(&self) -> &[T] {
-        &self.transitions
+    pub fn interlaminas(&self) -> &[T] {
+        &self.interlaminas
     }
 
     #[inline]
-    pub fn layer(&self, index: usize) -> Option<&L> {
-        self.layers.get(&index)
+    pub fn lamina(&self, index: usize) -> Option<&L> {
+        self.laminas.get(&index)
     }
 
     #[inline]
-    pub fn transition(&self, index: usize) -> Option<&T> {
-        self.transitions.get(&index)
+    pub fn interlamina(&self, index: usize) -> Option<&T> {
+        self.interlaminas.get(&index)
     }
 }
 
@@ -97,14 +89,14 @@ where
         >,
     Paralleled<PS>: Sub<P> + Add<P>,
 {
-    pub fn add_into_layer(&mut self, layer_index: usize, polygon: P) {
-        if layer_index >= self.layers.len() {
+    pub fn add_into_lamina(&mut self, lamina_index: usize, polygon: P) {
+        if lamina_index >= self.laminas.len() {
             return;
         }
 
         let (clipping_polygons, removed_polygons) = {
-            let layer = self.layers.get_mut(layer_index).unwrap();
-            let (inner_outputs, _outer_parallel_outputs) = layer.add(polygon);
+            let lamina = self.laminas.get_mut(lamina_index).unwrap();
+            let (inner_outputs, _outer_parallel_outputs) = lamina.add(polygon);
             let (inner_primary_output, inner_parallel_outputs) = inner_outputs;
             let (parallel_ids, removed_polygons) = inner_parallel_outputs
                 .first()
@@ -112,8 +104,8 @@ where
                 .unwrap_or(inner_primary_output);
 
             // We hard-code the last parallel to be the polygon-set that clips
-            // the transition layer.
-            let Some(clipping_source) = layer.primary().parallels().last().map(|s| s.minuend())
+            // the interlamina lamina.
+            let Some(clipping_source) = lamina.primary().parallels().last().map(|s| s.minuend())
             else {
                 return;
             };
@@ -124,15 +116,15 @@ where
             )
         };
 
-        // Transition i corresponds to the window (i, i+1). Hence, a write to
-        // layer k affects transitions k-1 and k.
-        if layer_index > 0 {
-            self.exclude_removed(layer_index - 1, &removed_polygons);
-            self.clip_transpolygon(layer_index - 1, clipping_polygons.clone());
+        // Interlamina i corresponds to the window (i, i+1). Hence, a write to
+        // lamina k affects interlaminas k-1 and k.
+        if lamina_index > 0 {
+            self.exclude_removed(lamina_index - 1, &removed_polygons);
+            self.clip_interpolygon(lamina_index - 1, clipping_polygons.clone());
         }
-        if layer_index < self.transitions.len() {
-            self.exclude_removed(layer_index, &removed_polygons);
-            self.clip_transpolygon(layer_index, clipping_polygons);
+        if lamina_index < self.interlaminas.len() {
+            self.exclude_removed(lamina_index, &removed_polygons);
+            self.clip_interpolygon(lamina_index, clipping_polygons);
         }
     }
 
@@ -142,66 +134,66 @@ where
             .collect()
     }
 
-    fn exclude_removed(&mut self, transition_index: usize, removed_polygons: &[P]) {
+    fn exclude_removed(&mut self, interlamina_index: usize, removed_polygons: &[P]) {
         if removed_polygons.is_empty() {
             return;
         }
 
-        let transition = &mut self.transitions[transition_index];
+        let interlamina = &mut self.interlaminas[interlamina_index];
 
         for removed in removed_polygons {
-            let _ = transition.sub(removed.clone());
+            let _ = interlamina.sub(removed.clone());
         }
     }
 
-    fn clip_transpolygon(&mut self, transpolygon_index: usize, clipping_polygons: Vec<P>) {
-        let transition = &mut self.transitions[transpolygon_index];
+    fn clip_interpolygon(&mut self, interpolygon_index: usize, clipping_polygons: Vec<P>) {
+        let interlamina = &mut self.interlaminas[interpolygon_index];
 
         if clipping_polygons.is_empty() {
-            // If there is nothing to clip, the transition is unaffected.
+            // If there is nothing to clip, the interlamina is unaffected.
             return;
         }
 
-        let mut located_transids = BTreeSet::new();
+        let mut located_interids = BTreeSet::new();
 
         for clipping_polygon in &clipping_polygons {
             let clip_bbox = rectangle_from_polygon(clipping_polygon);
 
-            for hit in transition
+            for hit in interlamina
                 .primary()
                 .as_ref()
                 .locate_in_envelope_intersecting(&clip_bbox.envelope())
             {
-                located_transids.insert(hit.data);
+                located_interids.insert(hit.data);
             }
         }
 
-        let located_transpolygons: Vec<P> = located_transids
+        let located_interpolygons: Vec<P> = located_interids
             .into_iter()
-            .filter_map(|id| Get::get(transition.primary(), &id).cloned())
+            .filter_map(|id| Get::get(interlamina.primary(), &id).cloned())
             .collect();
 
-        for transpolygon in located_transpolygons {
+        for interpolygon in located_interpolygons {
             let mut clipped_union = PolygonSet::<K, P>::new();
             let mut has_intersection = false;
 
             for clipping_polygon in &clipping_polygons {
-                for piece in P::intersect(transpolygon.clone(), clipping_polygon.clone()) {
+                for piece in P::intersect(interpolygon.clone(), clipping_polygon.clone()) {
                     has_intersection = true;
                     let _ = clipped_union.add(piece);
                 }
             }
 
             if !has_intersection {
-                // If transpolygon is not intersected, skip it. Otherwise, it
+                // If interpolygon is not intersected, skip it. Otherwise, it
                 // would get removed, which would be incorrect.
                 continue;
             }
 
-            let _ = transition.sub(transpolygon);
+            let _ = interlamina.sub(interpolygon);
 
             for (_idx, piece) in clipped_union.polygons().iter() {
-                let _ = transition.add(piece.clone());
+                let _ = interlamina.add(piece.clone());
             }
         }
     }
@@ -210,7 +202,7 @@ where
 #[cfg(feature = "undoredo")]
 /// `Laminate`-equivalent using recording container combinators.
 pub type RecordingLaminate<K, P = Polygon<K>> =
-    Laminate<K, P, RecordingLayerWithParallels<K, P>, RecordingTransitionLayer<K, P>>;
+    Laminate<K, P, RecordingLamina<K, P>, RecordingInterlamina<K, P>>;
 
 #[cfg(feature = "undoredo")]
 /// Half-delta of `Laminate`.
@@ -227,25 +219,29 @@ impl<K: RTreeNum, P, LE: Clone, L: Clone + ApplyDelta<LE>, TE: Clone, T: Clone +
     fn apply_delta(&mut self, delta: LaminateDelta<K, P, LE, TE>) {
         let (removed, inserted) = delta.dissolve();
 
-        for (layer, (removed_layer, inserted_layer)) in self
-            .layers
-            .iter_mut()
-            .zip(removed.layers.into_iter().zip(inserted.layers.into_iter()))
-        {
-            layer.apply_delta(Delta::with_removed_inserted(removed_layer, inserted_layer));
+        for (lamina, (removed_lamina, inserted_lamina)) in self.laminas.iter_mut().zip(
+            removed
+                .laminas
+                .into_iter()
+                .zip(inserted.laminas.into_iter()),
+        ) {
+            lamina.apply_delta(Delta::with_removed_inserted(
+                removed_lamina,
+                inserted_lamina,
+            ));
         }
 
-        for (transition, (removed_transition, inserted_transition)) in
-            self.transitions.iter_mut().zip(
+        for (interlamina, (removed_interlamina, inserted_interlamina)) in
+            self.interlaminas.iter_mut().zip(
                 removed
-                    .transitions
+                    .interlaminas
                     .into_iter()
-                    .zip(inserted.transitions.into_iter()),
+                    .zip(inserted.interlaminas.into_iter()),
             )
         {
-            transition.apply_delta(Delta::with_removed_inserted(
-                removed_transition,
-                inserted_transition,
+            interlamina.apply_delta(Delta::with_removed_inserted(
+                removed_interlamina,
+                inserted_interlamina,
             ));
         }
     }
@@ -256,32 +252,32 @@ impl<K: RTreeNum, P, LE: Clone, L: FlushDelta<LE>, TE: Clone, T: FlushDelta<TE>>
     FlushDelta<LaminateHalfDelta<K, P, LE, TE>> for Laminate<K, P, L, T>
 {
     fn flush_delta(&mut self) -> LaminateDelta<K, P, LE, TE> {
-        let mut removed_layers = Vec::with_capacity(self.layers.len());
-        let mut inserted_layers = Vec::with_capacity(self.layers.len());
-        let mut removed_transitions = Vec::with_capacity(self.transitions.len());
-        let mut inserted_transitions = Vec::with_capacity(self.transitions.len());
+        let mut removed_laminas = Vec::with_capacity(self.laminas.len());
+        let mut inserted_laminas = Vec::with_capacity(self.laminas.len());
+        let mut removed_interlaminas = Vec::with_capacity(self.interlaminas.len());
+        let mut inserted_interlaminas = Vec::with_capacity(self.interlaminas.len());
 
-        for layer in &mut self.layers {
-            let (removed_layer, inserted_layer) = layer.flush_delta().dissolve();
-            removed_layers.push(removed_layer);
-            inserted_layers.push(inserted_layer);
+        for lamina in &mut self.laminas {
+            let (removed_lamina, inserted_lamina) = lamina.flush_delta().dissolve();
+            removed_laminas.push(removed_lamina);
+            inserted_laminas.push(inserted_lamina);
         }
 
-        for transition in &mut self.transitions {
-            let (removed_transition, inserted_transition) = transition.flush_delta().dissolve();
-            removed_transitions.push(removed_transition);
-            inserted_transitions.push(inserted_transition);
+        for interlamina in &mut self.interlaminas {
+            let (removed_interlamina, inserted_interlamina) = interlamina.flush_delta().dissolve();
+            removed_interlaminas.push(removed_interlamina);
+            inserted_interlaminas.push(inserted_interlamina);
         }
 
         Delta::with_removed_inserted(
             Laminate {
-                layers: removed_layers,
-                transitions: removed_transitions,
+                laminas: removed_laminas,
+                interlaminas: removed_interlaminas,
                 scalar_and_polygon_marker: PhantomData,
             },
             Laminate {
-                layers: inserted_layers,
-                transitions: inserted_transitions,
+                laminas: inserted_laminas,
+                interlaminas: inserted_interlaminas,
                 scalar_and_polygon_marker: PhantomData,
             },
         )

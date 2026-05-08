@@ -68,7 +68,7 @@ fn new_transition_layer() -> DemoTransition {
     DemoTransition::new(transition_set, vec![])
 }
 
-fn new_layers_with_transitions() -> DemoLaminate {
+fn new_laminate_demo() -> DemoLaminate {
     DemoLaminate::new(
         vec![new_layer_stack(), new_layer_stack(), new_layer_stack()],
         vec![new_transition_layer(), new_transition_layer()],
@@ -188,10 +188,10 @@ fn darken(color: Color, factor: f32) -> Color {
     )
 }
 
-#[macroquad::main("Layers with transitions")]
+#[macroquad::main("lamina with interlamina")]
 async fn main() {
     let mut undoredo: UndoRedo<DemoLayersDelta> = UndoRedo::new();
-    let mut model = new_layers_with_transitions();
+    let mut model = new_laminate_demo();
     let mut zoom = 1.0f32;
     let mut offset = vec2(0.0, 0.0);
     let mut show_hint = true;
@@ -222,10 +222,10 @@ async fn main() {
         } else if redo_clicked {
             undoredo.redo(&mut model);
         } else if left_pressed {
-            model.add_into_layer(0, random_polygon_at_screen_click(center, zoom, mx, my));
+            model.add_into_lamina(0, random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut model);
         } else if right_pressed {
-            model.add_into_layer(2, random_polygon_at_screen_click(center, zoom, mx, my));
+            model.add_into_lamina(2, random_polygon_at_screen_click(center, zoom, mx, my));
             undoredo.commit(&mut model);
         }
 
@@ -249,7 +249,7 @@ async fn main() {
         if is_mouse_button_released(MouseButton::Middle) {
             if !middle_panned {
                 if let Some(click_pos) = middle_press_start {
-                    model.add_into_layer(
+                    model.add_into_lamina(
                         1,
                         random_polygon_at_screen_click(center, zoom, click_pos.x, click_pos.y),
                     );
@@ -336,24 +336,24 @@ async fn main() {
 
         // Draw order keeps bottom under middle under top.
         for (layer_i, base_color) in [(2usize, SKYBLUE), (1usize, ORANGE), (0usize, RED)] {
-            let primary = model.layers()[layer_i].primary().primary().minuend();
+            let primary = model.laminas()[layer_i].primary().primary().minuend();
             draw_polygon_set_lines(primary, center, zoom, base_color);
 
-            let parallel = model.layers()[layer_i]
+            let parallel = model.laminas()[layer_i]
                 .primary()
                 .parallels()
                 .first()
-                .expect("each layer has one parallel polygon-set")
+                .expect("each lamina has one parallel polygon-set")
                 .minuend();
             draw_polygon_set_lines(parallel, center, zoom, darken(base_color, 0.55));
         }
 
-        // Transition between top and middle is visually topmost.
-        let topmost_transition = model.transitions()[0].primary();
-        draw_polygon_set_lines(topmost_transition, center, zoom, YELLOW);
+        // Interlamina between top and middle is visually topmost.
+        let topmost_interlamina = model.interlaminas()[0].primary();
+        draw_polygon_set_lines(topmost_interlamina, center, zoom, YELLOW);
 
-        let other_transition = model.transitions()[1].primary();
-        draw_polygon_set_lines(other_transition, center, zoom, MAGENTA);
+        let other_interlamina = model.interlaminas()[1].primary();
+        draw_polygon_set_lines(other_interlamina, center, zoom, MAGENTA);
 
         next_frame().await;
     }
