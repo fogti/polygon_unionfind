@@ -41,7 +41,7 @@ pub struct Laminate<K: RTreeNum, P = Polygon<K>, L = Lamina<K, P>, T = Interlami
 
 impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     #[inline]
-    pub fn new(laminas: Vec<L>, interlaminas: Vec<T>) -> Self {
+    pub fn with_laminas_interlaminas(laminas: Vec<L>, interlaminas: Vec<T>) -> Self {
         assert!(
             interlaminas.len() == laminas.len().saturating_sub(1),
             "interlaminas must have exactly laminas.len() - 1 entries"
@@ -74,6 +74,46 @@ impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     }
 }
 
+impl<K, P> Laminate<K, P>
+where
+    K: RTreeNum + Default,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+{
+    pub fn new(boundary: P, num_laminas: usize, parallel_inflations: impl Into<Vec<K>>) -> Self {
+        let parallel_inflations = parallel_inflations.into();
+        let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
+            .map(|_| lamina_from_boundary(&boundary, &parallel_inflations))
+            .collect();
+        let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
+            .map(|_| Paralleled::new(PolygonSet::new(), Vec::new()))
+            .collect();
+        Self::with_laminas_interlaminas(laminas, interlaminas)
+    }
+}
+
+fn lamina_from_boundary<K, P>(boundary: &P, parallel_inflations: &[K]) -> Lamina<K, P>
+where
+    K: RTreeNum + Default,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+{
+    let mut primary_minuend = PolygonSet::new();
+    let _ = primary_minuend.add(boundary.clone());
+    let primary = Negated::new(primary_minuend, Inflated::new(K::default()));
+
+    let parallels: Vec<_> = parallel_inflations
+        .iter()
+        .cloned()
+        .map(|offset| {
+            let mut minuend = PolygonSet::new();
+            let _ = minuend.add(boundary.clone());
+            Negated::new(minuend, Inflated::new(offset))
+        })
+        .collect();
+
+    let inner = Paralleled::new(primary, parallels);
+    Paralleled::new(inner, Vec::new())
+}
+
 impl<K, P, M, SI, PS> Laminate<K, P, Paralleled<Paralleled<Negated<M, SI>>>, Paralleled<PS>>
 where
     K: RTreeNum + Ord,
@@ -104,7 +144,7 @@ where
                 .unwrap_or(inner_primary_output);
 
             // We hard-code the last parallel to be the polygon-set that clips
-            // the interlamina lamina.
+            // the interlamina.
             let Some(clipping_source) = lamina.primary().parallels().last().map(|s| s.minuend())
             else {
                 return;

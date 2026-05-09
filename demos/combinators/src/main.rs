@@ -56,7 +56,7 @@ impl Layers {
         let new_transition = || DemoTransitionLayer::new(RecordingPolygonSet::new(), vec![]);
 
         Self {
-            inner: DemoLaminate::new(
+            inner: DemoLaminate::with_laminas_interlaminas(
                 vec![new_layer(), new_layer()],
                 vec![new_transition()],
             ),

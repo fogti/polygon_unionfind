@@ -69,7 +69,7 @@ fn new_transition_layer() -> DemoTransition {
 }
 
 fn new_laminate_demo() -> DemoLaminate {
-    DemoLaminate::new(
+    DemoLaminate::with_laminas_interlaminas(
         vec![new_layer_stack(), new_layer_stack(), new_layer_stack()],
         vec![new_transition_layer(), new_transition_layer()],
     )
