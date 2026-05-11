@@ -79,8 +79,12 @@ where
     K: RTreeNum + Default,
     P: Clone + Rings<K> + Union<P> + Difference<P>,
 {
-    pub fn new(boundary: P, num_laminas: usize, parallel_inflations: impl Into<Vec<K>>) -> Self {
-        let parallel_inflations = parallel_inflations.into();
+    pub fn new(
+        boundary: P,
+        num_laminas: usize,
+        parallel_inflations: impl IntoIterator<Item = K>,
+    ) -> Self {
+        let parallel_inflations = parallel_inflations.into_iter().collect::<Vec<_>>();
         let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
             .map(|_| lamina_from_boundary(&boundary, &parallel_inflations))
             .collect();
@@ -104,9 +108,9 @@ where
         .iter()
         .cloned()
         .map(|offset| {
-            let mut minuend = PolygonSet::new();
-            let _ = minuend.add(boundary.clone());
-            Negated::new(minuend, Inflated::new(offset))
+            let mut parallel_minuend = PolygonSet::new();
+            let _ = parallel_minuend.add(boundary.clone());
+            Negated::new(parallel_minuend, Inflated::new(offset))
         })
         .collect();
 
