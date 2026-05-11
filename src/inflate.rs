@@ -122,7 +122,7 @@ macro_rules! impl_inflate_int {
     };
 }
 
-macro_rules! impl_inflate_weighted_float {
+macro_rules! impl_inflate_with_data_float {
     ($k:ty) => {
         impl<W> Inflate<$k> for PolygonWithData<$k, W> {
             fn inflate(self, offset: $k) -> Self {
@@ -136,14 +136,14 @@ macro_rules! impl_inflate_weighted_float {
                 PolygonWithData {
                     exterior,
                     interiors,
-                    weight: self.weight,
+                    data: self.data,
                 }
             }
         }
     };
 }
 
-macro_rules! impl_inflate_weighted_int {
+macro_rules! impl_inflate_with_data_int {
     ($k:ty) => {
         impl<W> Inflate<$k> for PolygonWithData<$k, W> {
             fn inflate(self, offset: $k) -> Self {
@@ -155,7 +155,7 @@ macro_rules! impl_inflate_weighted_int {
                 PolygonWithData {
                     exterior,
                     interiors,
-                    weight: self.weight,
+                    data: self.data,
                 }
             }
         }
@@ -169,9 +169,9 @@ impl_inflate_int!(i16);
 impl_inflate_int!(i32);
 impl_inflate_int!(i64);
 
-impl_inflate_weighted_float!(f32);
-impl_inflate_weighted_float!(f64);
-impl_inflate_weighted_int!(i8);
-impl_inflate_weighted_int!(i16);
-impl_inflate_weighted_int!(i32);
-impl_inflate_weighted_int!(i64);
+impl_inflate_with_data_float!(f32);
+impl_inflate_with_data_float!(f64);
+impl_inflate_with_data_int!(i8);
+impl_inflate_with_data_int!(i16);
+impl_inflate_with_data_int!(i32);
+impl_inflate_with_data_int!(i64);

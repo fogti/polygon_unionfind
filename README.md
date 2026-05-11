@@ -74,7 +74,7 @@ let polygon1 = polygon_unionfind.add(PolygonWithData {
         [-1, 2],
     ],
     interiors: vec![],
-    weight: "first",
+    data: "first",
 });
 
 let polygon2 = polygon_unionfind.add(PolygonWithData {
@@ -87,7 +87,7 @@ let polygon2 = polygon_unionfind.add(PolygonWithData {
         [1, 2],
     ],
     interiors: vec![],
-    weight: "second",
+    data: "second",
 });
 
 // Overlapping polygons are now in the same set and thus have the same

@@ -40,7 +40,7 @@ fn frame_polygon() -> DemoPolygon {
     DemoPolygon {
         exterior: vec![[-2000, -2000], [2000, -2000], [2000, 2000], [-2000, 2000]],
         interiors: vec![],
-        weight: (),
+        data: (),
     }
 }
 
@@ -139,7 +139,7 @@ fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> DemoPolygon {
             .map(|[x, y]| [i64::from(x), i64::from(y)])
             .collect(),
         interiors: vec![],
-        weight: (),
+        data: (),
     }
 }
 

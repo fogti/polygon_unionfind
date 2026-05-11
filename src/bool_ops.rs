@@ -206,7 +206,7 @@ macro_rules! impl_union_float {
                 Some(PolygonWithData {
                     exterior,
                     interiors,
-                    weight: a.weight,
+                    data: a.data,
                 })
             }
         }
@@ -234,7 +234,7 @@ macro_rules! impl_union_int {
                 Some(PolygonWithData {
                     exterior,
                     interiors,
-                    weight: a.weight,
+                    data: a.data,
                 })
             }
         }
@@ -273,7 +273,7 @@ macro_rules! impl_intersect_float {
                     .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
-                        weight: a.weight.clone(),
+                        data: a.data.clone(),
                     })
                     .collect()
             }
@@ -307,7 +307,7 @@ macro_rules! impl_intersect_int {
                     .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
-                        weight: a.weight.clone(),
+                        data: a.data.clone(),
                     })
                     .collect()
             }
@@ -347,7 +347,7 @@ macro_rules! impl_difference_float {
                     .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
-                        weight: a.weight.clone(),
+                        data: a.data.clone(),
                     })
                     .collect()
             }
@@ -381,7 +381,7 @@ macro_rules! impl_difference_int {
                     .map(|(exterior, interiors)| PolygonWithData {
                         exterior,
                         interiors,
-                        weight: a.weight.clone(),
+                        data: a.data.clone(),
                     })
                     .collect()
             }

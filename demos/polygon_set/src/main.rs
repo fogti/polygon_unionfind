@@ -74,7 +74,7 @@ fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithData<i64, ()> {
             .map(|[x, y]| [i64::from(x), i64::from(y)])
             .collect(),
         interiors: vec![],
-        weight: (),
+        data: (),
     }
 }
 

@@ -78,7 +78,7 @@ pub struct PolygonWithData<K, W = ()> {
     /// Polygon interior rings.
     pub interiors: Vec<Vec<[K; 2]>>,
     /// User-defined payload for this polygon.
-    pub weight: W,
+    pub data: W,
 }
 
 impl<K, W> Rings<K> for PolygonWithData<K, W> {
