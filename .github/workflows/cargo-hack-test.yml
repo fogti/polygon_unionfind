@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: 2026 polygon_unionfind contributors
+# SPDX-FileCopyrightText: 2026 undoredo contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
-name: cargo-hack
+name: cargo-hack-test
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  feature-powerset:
+  cargo-hack-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,5 +25,7 @@ jobs:
         with:
           tool: cargo-hack
 
-      - name: Test feature flags
-        run: cargo hack test --feature-powerset --depth 2
+      - name: Test examples, tests, docs for depth-2 powerset of feature flags
+        run: |
+          cargo hack test --feature-powerset --depth 2 --examples --tests
+          cargo hack test --all-features --doc
