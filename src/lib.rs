@@ -19,6 +19,7 @@ mod polygon_set;
 mod polygon_unionfind;
 mod unionfind;
 
+pub use bool_ops::{Difference, Intersection, Union};
 pub use combinators::{Inflated, Negated, Paralleled};
 #[cfg(feature = "undoredo")]
 pub use combinators::{RecordingInflated, RecordingNegated, RecordingParalleled};

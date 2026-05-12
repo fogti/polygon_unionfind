@@ -39,6 +39,27 @@ pub struct Laminate<K: RTreeNum, P = Polygon<K>, L = Lamina<K, P>, T = Interlami
     scalar_and_polygon_marker: PhantomData<(K, P)>,
 }
 
+impl<K, P> Laminate<K, P>
+where
+    K: RTreeNum + Default,
+    P: Clone + Rings<K> + Union<P> + Difference<P>,
+{
+    pub fn new(
+        boundary: P,
+        num_laminas: usize,
+        parallel_inflations: impl IntoIterator<Item = K>,
+    ) -> Self {
+        let parallel_inflations = parallel_inflations.into_iter().collect::<Vec<_>>();
+        let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
+            .map(|_| lamina_from_boundary(&boundary, &parallel_inflations))
+            .collect();
+        let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
+            .map(|_| Paralleled::new(PolygonSet::new(), Vec::new()))
+            .collect();
+        Self::with_laminas_interlaminas(laminas, interlaminas)
+    }
+}
+
 impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     #[inline]
     pub fn with_laminas_interlaminas(laminas: Vec<L>, interlaminas: Vec<T>) -> Self {
@@ -71,27 +92,6 @@ impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     #[inline]
     pub fn interlamina(&self, index: usize) -> Option<&T> {
         self.interlaminas.get(&index)
-    }
-}
-
-impl<K, P> Laminate<K, P>
-where
-    K: RTreeNum + Default,
-    P: Clone + Rings<K> + Union<P> + Difference<P>,
-{
-    pub fn new(
-        boundary: P,
-        num_laminas: usize,
-        parallel_inflations: impl IntoIterator<Item = K>,
-    ) -> Self {
-        let parallel_inflations = parallel_inflations.into_iter().collect::<Vec<_>>();
-        let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
-            .map(|_| lamina_from_boundary(&boundary, &parallel_inflations))
-            .collect();
-        let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
-            .map(|_| Paralleled::new(PolygonSet::new(), Vec::new()))
-            .collect();
-        Self::with_laminas_interlaminas(laminas, interlaminas)
     }
 }
 
