@@ -389,23 +389,28 @@ macro_rules! impl_difference_int {
     };
 }
 
+// We don't provide implementations for `i64` because `i_overlay` does not
+// support these -- not a single value beyond `i32` range is supported. And in
+// fact, `i_overlay`'s author treats `|coord| < 2^29` as a safe bound, which
+// narrower than even the `i32` range (`-2^31` to `2^31-1`).
+
 impl_union_float!(f32);
 impl_union_float!(f64);
 impl_union_int!(i8);
 impl_union_int!(i16);
 impl_union_int!(i32);
-impl_union_int!(i64);
+//impl_union_int!(i64);
 
 impl_intersect_float!(f32);
 impl_intersect_float!(f64);
 impl_intersect_int!(i8);
 impl_intersect_int!(i16);
 impl_intersect_int!(i32);
-impl_intersect_int!(i64);
+//impl_intersect_int!(i64);
 
 impl_difference_float!(f32);
 impl_difference_float!(f64);
 impl_difference_int!(i8);
 impl_difference_int!(i16);
 impl_difference_int!(i32);
-impl_difference_int!(i64);
+//impl_difference_int!(i64);
