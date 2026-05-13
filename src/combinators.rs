@@ -138,6 +138,15 @@ impl<S> Paralleled<S> {
     pub fn parallels(&self) -> &Vec<S> {
         &self.parallels
     }
+
+    #[inline]
+    pub fn row(&self, row: usize) -> &S {
+        if row >= 1 {
+            &self.parallels[row - 1]
+        } else {
+            &self.primary
+        }
+    }
 }
 
 impl<S> Paralleled<S> {
