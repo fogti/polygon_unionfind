@@ -34,7 +34,8 @@ type DemoLayersDelta = LaminateDelta<
     Paralleled<PolygonSetHalfDelta<i32, DemoPolygon>>,
 >;
 const PRIMARY_INFLATION: i32 = 0;
-const PARALLEL_INFLATION: i32 = 50;
+const RAIL_OFFSET: i32 = 5;
+const PERIPHERAL_INFLATION: i32 = 20;
 
 fn frame_polygon() -> DemoPolygon {
     DemoPolygon {
@@ -54,12 +55,15 @@ fn new_negated_layer(offset: i32) -> DemoNegated {
 }
 
 fn new_layer_stack() -> DemoLayer {
-    // Match combinators demo pattern: two polygon-set stacks in parallel.
-    let inner = Paralleled::new(
+    let core = Paralleled::new(
         new_negated_layer(PRIMARY_INFLATION),
-        vec![new_negated_layer(PARALLEL_INFLATION)],
+        vec![new_negated_layer(PRIMARY_INFLATION + RAIL_OFFSET)],
     );
-    Paralleled::new(inner, vec![])
+    let peripheral = Paralleled::new(
+        new_negated_layer(PERIPHERAL_INFLATION),
+        vec![new_negated_layer(PERIPHERAL_INFLATION + RAIL_OFFSET)],
+    );
+    Paralleled::new(core, vec![peripheral])
 }
 
 fn new_transition_layer() -> DemoTransition {
@@ -336,16 +340,31 @@ async fn main() {
 
         // Draw order keeps bottom under middle under top.
         for (layer_i, base_color) in [(2usize, SKYBLUE), (1usize, ORANGE), (0usize, RED)] {
-            let primary = model.laminas()[layer_i].primary().primary().minuend();
+            let lamina = &model.laminas()[layer_i];
+            let core = lamina.primary();
+
+            let primary = core.primary().minuend();
             draw_polygon_set_lines(primary, center, zoom, base_color);
 
-            let parallel = model.laminas()[layer_i]
-                .primary()
+            let parallel = core
                 .parallels()
                 .first()
-                .expect("each lamina has one parallel polygon-set")
+                .expect("each core stack has one rail polygon-set")
                 .minuend();
             draw_polygon_set_lines(parallel, center, zoom, darken(base_color, 0.55));
+
+            let periph = lamina
+                .parallels()
+                .first()
+                .expect("each lamina has one peripheral stack");
+            let periph_primary = periph.primary().minuend();
+            draw_polygon_set_lines(periph_primary, center, zoom, darken(base_color, 0.72));
+            let periph_rail = periph
+                .parallels()
+                .first()
+                .expect("each peripheral has one rail polygon-set")
+                .minuend();
+            draw_polygon_set_lines(periph_rail, center, zoom, darken(base_color, 0.42));
         }
 
         // Interlamina between top and middle is visually topmost.
