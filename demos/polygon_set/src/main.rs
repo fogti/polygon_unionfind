@@ -19,9 +19,9 @@ fn convex_hull(points: &[[i32; 2]]) -> Vec<[i32; 2]> {
     let mut pts: Vec<[i32; 2]> = points.to_vec();
     pts.sort_by(|a, b| a[0].cmp(&b[0]).then_with(|| a[1].cmp(&b[1])));
 
-    fn cross(o: [i32; 2], a: [i32; 2], b: [i32; 2]) -> i64 {
-        (a[0] as i64 - o[0] as i64) * (b[1] as i64 - o[1] as i64)
-            - (a[1] as i64 - o[1] as i64) * (b[0] as i64 - o[0] as i64)
+    fn cross(o: [i32; 2], a: [i32; 2], b: [i32; 2]) -> i32 {
+        (a[0] as i32 - o[0] as i32) * (b[1] as i32 - o[1] as i32)
+            - (a[1] as i32 - o[1] as i32) * (b[0] as i32 - o[0] as i32)
     }
 
     let mut lower = Vec::new();
@@ -67,11 +67,11 @@ fn random_convex_polygon_at_point(center: [i32; 2], radius: i32, count: usize) -
     hull
 }
 
-fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithData<i64, ()> {
+fn polygon_from_ring_i32(ring: Vec<[i32; 2]>) -> PolygonWithData<i32, ()> {
     PolygonWithData {
         exterior: ring
             .into_iter()
-            .map(|[x, y]| [i64::from(x), i64::from(y)])
+            .map(|[x, y]| [i32::from(x), i32::from(y)])
             .collect(),
         interiors: vec![],
         data: (),
@@ -83,7 +83,7 @@ fn random_polygon_at_screen_click(
     zoom: f32,
     mx: f32,
     my: f32,
-) -> PolygonWithData<i64, ()> {
+) -> PolygonWithData<i32, ()> {
     let click_world = vec2((mx - center.x) / zoom, -(my - center.y) / zoom);
     let radius = (60.0 / zoom).max(10.0).round() as i32;
     let count = gen_range(3, 10) as usize;
@@ -97,9 +97,9 @@ fn random_polygon_at_screen_click(
 
 #[macroquad::main("Polygon Set Viewer")]
 async fn main() {
-    let mut undoredo: UndoRedo<PolygonSetDelta<i64, PolygonWithData<i64, ()>>> =
+    let mut undoredo: UndoRedo<PolygonSetDelta<i32, PolygonWithData<i32, ()>>> =
         UndoRedo::new();
-    let mut polygon_set: RecordingPolygonSet<i64, PolygonWithData<i64, ()>> =
+    let mut polygon_set: RecordingPolygonSet<i32, PolygonWithData<i32, ()>> =
         RecordingPolygonSet::new();
 
     let mut zoom = 1.0f32;
@@ -243,7 +243,7 @@ async fn main() {
         for (i, (_index, polygon)) in polygon_set.polygons().as_ref().iter().enumerate() {
             let colors = [RED, GREEN, BLUE, SKYBLUE, MAGENTA, YELLOW];
             let color = colors[i % colors.len()];
-            let rings: Vec<&[[i64; 2]]> = std::iter::once(polygon.exterior.as_slice())
+            let rings: Vec<&[[i32; 2]]> = std::iter::once(polygon.exterior.as_slice())
                 .chain(polygon.interiors.iter().map(Vec::as_slice))
                 .collect();
             for ring in rings.iter().copied() {

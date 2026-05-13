@@ -62,7 +62,7 @@ Following is a basic usage example of `polygon_unionfind`.
 ```rust
 use polygon_unionfind::{PolygonUnionFind, PolygonWithData};
 
-let mut polygon_unionfind = PolygonUnionFind::<i64, PolygonWithData<i64, &str>>::new();
+let mut polygon_unionfind = PolygonUnionFind::<i32, PolygonWithData<i32, &str>>::new();
 
 let polygon1 = polygon_unionfind.add(PolygonWithData {
     exterior: vec![
