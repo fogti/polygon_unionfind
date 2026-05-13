@@ -1,6 +1,6 @@
 [package]
 name = "polygon_unionfind"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["Mikolaj Wielgus <wielgusmikolaj@gmail.com>"]
 description = "Disjoint-set data structure (union-find) for polygons."
 repository = "https://github.com/mikwielgus/polygon_unionfind"
