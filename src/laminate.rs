@@ -54,7 +54,7 @@ where
         let rail_offsets: Vec<K> = rail_offsets.into_iter().collect();
 
         let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
-            .map(|_| lamina_from_boundary(&boundary, &[], &rail_offsets))
+            .map(|_| lamina_from_boundary(&boundary, &peripheral_inflations, &rail_offsets))
             .collect();
         let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
             .map(|_| {
