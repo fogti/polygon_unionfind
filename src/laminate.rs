@@ -58,8 +58,10 @@ where
             .collect();
         let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
             .map(|_| {
+                let mut primary_set = PolygonSet::new();
+                let _ = primary_set.add(boundary.clone());
                 Paralleled::new(
-                    PolygonSet::new(),
+                    primary_set,
                     std::iter::repeat_n(PolygonSet::new(), peripheral_inflations.len()).collect(),
                 )
             })
