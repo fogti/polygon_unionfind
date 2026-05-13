@@ -47,15 +47,24 @@ where
     pub fn new(
         boundary: P,
         num_laminas: usize,
-        parallel_inflations: impl IntoIterator<Item = K>,
+        peripheral_inflations: impl IntoIterator<Item = K>,
+        rail_offsets: impl IntoIterator<Item = K>,
     ) -> Self {
-        let parallel_inflations = parallel_inflations.into_iter().collect::<Vec<_>>();
+        let peripheral_inflations: Vec<K> = peripheral_inflations.into_iter().collect();
+        let rail_offsets: Vec<K> = rail_offsets.into_iter().collect();
+
         let laminas: Vec<Lamina<K, P>> = (0..num_laminas)
-            .map(|_| lamina_from_boundary(&boundary, &parallel_inflations))
+            .map(|_| lamina_from_boundary(&boundary, &[], &rail_offsets))
             .collect();
         let interlaminas: Vec<Interlamina<K, P>> = (0..num_laminas.saturating_sub(1))
-            .map(|_| Paralleled::new(PolygonSet::new(), Vec::new()))
+            .map(|_| {
+                Paralleled::new(
+                    PolygonSet::new(),
+                    std::iter::repeat_n(PolygonSet::new(), peripheral_inflations.len()).collect(),
+                )
+            })
             .collect();
+
         Self::with_laminas_interlaminas(laminas, interlaminas)
     }
 }
@@ -95,27 +104,59 @@ impl<K: RTreeNum, P, L, T> Laminate<K, P, L, T> {
     }
 }
 
-fn lamina_from_boundary<K, P>(boundary: &P, parallel_inflations: &[K]) -> Lamina<K, P>
+fn lamina_from_boundary<K, P>(
+    boundary: &P,
+    peripheral_inflations: &[K],
+    rail_offsets: &[K],
+) -> Lamina<K, P>
 where
     K: RTreeNum + Default,
     P: Clone + Rings<K> + Union<P> + Difference<P>,
 {
-    let mut primary_minuend = PolygonSet::new();
-    let _ = primary_minuend.add(boundary.clone());
-    let primary = Negated::new(primary_minuend, Inflated::new(K::default()));
+    let mut core_track_minuend = PolygonSet::new();
+    let _ = core_track_minuend.add(boundary.clone());
+    let core_track = Negated::new(core_track_minuend, Inflated::new(K::default()));
 
-    let parallels: Vec<_> = parallel_inflations
-        .iter()
-        .cloned()
-        .map(|offset| {
-            let mut parallel_minuend = PolygonSet::new();
-            let _ = parallel_minuend.add(boundary.clone());
-            Negated::new(parallel_minuend, Inflated::new(offset))
-        })
-        .collect();
+    let mut core_rails = vec![];
 
-    let inner = Paralleled::new(primary, parallels);
-    Paralleled::new(inner, Vec::new())
+    for &core_rail_offset in rail_offsets {
+        let mut core_rail_minuend = PolygonSet::new();
+        let _ = core_rail_minuend.add(boundary.clone());
+
+        core_rails.push(Negated::new(
+            core_rail_minuend,
+            Inflated::new(core_rail_offset),
+        ));
+    }
+
+    let core = Paralleled::new(core_track, core_rails);
+
+    let mut peripherals = vec![];
+
+    for &peripheral_inflation in peripheral_inflations {
+        let mut peripheral_track_minuend = PolygonSet::new();
+        let _ = peripheral_track_minuend.add(boundary.clone());
+        let peripheral_track = Negated::new(
+            peripheral_track_minuend,
+            Inflated::new(peripheral_inflation),
+        );
+
+        let mut peripheral_rails = vec![];
+
+        for &peripheral_rail_offset in rail_offsets {
+            let mut peripheral_rail_minuend = PolygonSet::new();
+            let _ = peripheral_rail_minuend.add(boundary.clone());
+
+            peripheral_rails.push(Negated::new(
+                peripheral_rail_minuend,
+                Inflated::new(peripheral_inflation + peripheral_rail_offset),
+            ));
+        }
+
+        peripherals.push(Paralleled::new(peripheral_track, peripheral_rails));
+    }
+
+    Paralleled::new(core, peripherals)
 }
 
 impl<K, P, M, SI, PS> Laminate<K, P, Paralleled<Paralleled<Negated<M, SI>>>, Paralleled<PS>>
