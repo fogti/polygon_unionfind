@@ -56,6 +56,27 @@ macro_rules! impl_inflate_float {
     };
 }
 
+macro_rules! impl_inflate_with_data_float {
+    ($k:ty) => {
+        impl<W> Inflate<$k> for PolygonWithData<$k, W> {
+            fn inflate(self, offset: $k) -> Self {
+                let shape = shape_from_rings(self.exterior, self.interiors);
+                let buffered = shape.outline(&OutlineStyle::new(offset));
+
+                let (exterior, interiors) = first_inflated_shape(buffered)
+                    .or_else(|| rings_from_shape(shape))
+                    .unwrap_or_default();
+
+                PolygonWithData {
+                    exterior,
+                    interiors,
+                    data: self.data,
+                }
+            }
+        }
+    };
+}
+
 fn inflate_int_shape<K>(
     shape: Vec<Vec<[K; 2]>>,
     offset: K,
@@ -116,27 +137,6 @@ macro_rules! impl_inflate_int {
                 Polygon {
                     exterior,
                     interiors,
-                }
-            }
-        }
-    };
-}
-
-macro_rules! impl_inflate_with_data_float {
-    ($k:ty) => {
-        impl<W> Inflate<$k> for PolygonWithData<$k, W> {
-            fn inflate(self, offset: $k) -> Self {
-                let shape = shape_from_rings(self.exterior, self.interiors);
-                let buffered = shape.outline(&OutlineStyle::new(offset));
-
-                let (exterior, interiors) = first_inflated_shape(buffered)
-                    .or_else(|| rings_from_shape(shape))
-                    .unwrap_or_default();
-
-                PolygonWithData {
-                    exterior,
-                    interiors,
-                    data: self.data,
                 }
             }
         }
