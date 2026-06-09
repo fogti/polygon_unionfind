@@ -11,6 +11,7 @@ extern crate std;
 extern crate alloc;
 
 mod bool_ops;
+mod centroid;
 mod combinators;
 mod inflate;
 mod laminate;
@@ -20,6 +21,7 @@ mod polygon_unionfind;
 mod unionfind;
 
 pub use bool_ops::{Difference, Intersection, Union};
+pub use centroid::Centroid;
 pub use combinators::{Inflated, Negated, Paralleled};
 #[cfg(feature = "undoredo")]
 pub use combinators::{RecordingInflated, RecordingNegated, RecordingParalleled};
@@ -27,7 +29,7 @@ pub use inflate::Inflate;
 pub use laminate::Laminate;
 #[cfg(feature = "undoredo")]
 pub use laminate::{LaminateDelta, LaminateHalfDelta, RecordingLaminate};
-pub use polygon::{Centroid, Polygon, PolygonId, PolygonWithData, Rings};
+pub use polygon::{Polygon, PolygonId, PolygonWithData, Rings};
 pub use polygon_set::PolygonSet;
 #[cfg(feature = "undoredo")]
 pub use polygon_set::{PolygonSetDelta, PolygonSetHalfDelta, RecordingPolygonSet};
