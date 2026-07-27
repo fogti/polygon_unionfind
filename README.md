@@ -1,5 +1,6 @@
 # polygon_unionfind
 
+[![Repository](https://img.shields.io/badge/repository-GitHub-0FBF3E)](https://github.com/mikwielgus/multi_bimap)
 [![Docs](https://docs.rs/undoredo/badge.svg)](https://docs.rs/polygon_unionfind/)
 [![Crates.io](https://img.shields.io/crates/v/polygon_unionfind.svg)](https://crates.io/crates/polygon_unionfind)
 [![MIT OR Apache 2.0](https://img.shields.io/crates/l/polygon_unionfind.svg)](#licence)
