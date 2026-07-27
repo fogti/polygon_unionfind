@@ -104,12 +104,6 @@ See the
 [documentation](https://docs.rs/polygon_unionfind/latest/polygon_unionfind) for
 more information about `polygon_unionfind`'s usage.
 
-## Feature flags
-
-- `std` (default): enables `std` support.
-- `undoredo` (optional): provides recording of deltas for Undo/Redo with the
-  [`undoredo`](https://crates.io/crates/undoredo) crate.
-
 ## Packaging
 
 `polygon_unionfind` is published as a

@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![doc(html_root_url = "https://docs.rs/polygon_unionfind")]
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, doc = "\n## Feature flags\n")]
+#![cfg_attr(docsrs, doc = document_features::document_features!())]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "std")]
 extern crate std;
