@@ -13,7 +13,6 @@ use rstar::{
     RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
-use rstared::AsRefRTree;
 use stable_vec::StableVec;
 
 #[cfg(feature = "undoredo")]
@@ -32,7 +31,7 @@ pub struct PolygonSet<
     K,
     P = Polygon<K>,
     PC = StableVec<P>,
-    PR = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+    PR = RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
 > {
     polygons: PC,
     rtree: PR,

@@ -16,7 +16,6 @@ use rstar::{
     RTree, RTreeNum, RTreeObject,
     primitives::{GeomWithData, Rectangle},
 };
-use rstared::AsRefRTree;
 #[cfg(feature = "undoredo")]
 use undoredo::{ApplyDelta, Delta, FlushDelta, Recorder};
 
@@ -31,7 +30,7 @@ pub struct PolygonUnionFind<
     K,
     P = Polygon<K>,
     PC = Vec<P>,
-    PR = AsRefRTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
+    PR = RTree<GeomWithData<Rectangle<[K; 2]>, PolygonId>>,
     UFPC = Vec<usize>,
     UFRC = Vec<usize>,
 > {

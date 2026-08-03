@@ -2,7 +2,7 @@
 members = [".", "demos/*"]
 
 [workspace.dependencies]
-undoredo = { version = "0.13", features = ["derive", "rstar", "stable-vec"] }
+undoredo = { version = "0.14", features = ["derive", "rstar", "stable-vec"] }
 
 [package]
 name = "polygon_unionfind"
@@ -27,14 +27,16 @@ undoredo = ["dep:undoredo"]
 
 [dependencies]
 document-features = { version = "0.2", optional = true }
-i_overlay = "4.4"
-maplike = { version = "0.13", features = ["stable-vec"] }
+i_overlay = "4.5"
+maplike = { version = "0.14", features = ["rstar", "stable-vec"] }
 num-traits = "0.2"
 rstar = "0.13"
-rstared = "0.13"
-stable-vec = "0.4.2"
+stable-vec = "0.4"
 undoredo = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 cargo-args = ["--all-features", "-Zunstable-options", "-Zrustdoc-scrape-examples"]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[patch.crates-io]
+rstar = { git = "https://github.com/georust/rstar.git" }
